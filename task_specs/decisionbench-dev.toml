@@ -1,0 +1,35 @@
+name = "DecisionBench"
+version = "1.0"
+description = "Canonical frozen DecisionBench suite covering document-grounded decisions."
+license = "multiple"
+languages = ["eng-Latn"]
+primitives = ["binary_classification", "candidate_selection", "ordinal_scoring"]
+families = [
+  "document_record_classification",
+  "routing_triage",
+  "rubric_scoring_prioritization",
+  "retrieval_verification",
+  "bounded_extraction",
+  "entity_alignment",
+  "guardrails_moderation",
+  "function_agent_skill_routing",
+  "document_workflows",
+]
+domains = [
+  "technical",
+  "financial",
+  "general_assistant",
+  "ecommerce",
+  "web",
+  "privacy",
+  "public_sector",
+  "online_safety",
+  "software_agents",
+  "legal",
+]
+
+[dataset]
+backend = "huggingface"
+split = "eval"
+hf_repo = "Hanno-Labs/decision-bench"
+hf_revision = "b7c8107e01ecb1aee7c7eaf5caee4a3ba9f59443"

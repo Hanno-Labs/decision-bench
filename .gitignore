@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hfdask/
+dist/
+results/
+
+# Development datasets are deliberately external to the source tree history.
+datasets/**
+!datasets/README.md
