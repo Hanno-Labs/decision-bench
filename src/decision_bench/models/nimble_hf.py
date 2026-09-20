@@ -108,7 +108,10 @@ class NimbleHFDecisionModel:
         try:
             import torch
             from peft import PeftModel
-            from transformers import AutoTokenizer, Qwen3_5ForConditionalGeneration
+            from transformers import AutoTokenizer
+            from transformers import (  # type: ignore[attr-defined]
+                Qwen3_5ForConditionalGeneration,
+            )
         except ImportError as error:
             raise RuntimeError(
                 "Nimble support requires the decision-bench[nimble] extra"

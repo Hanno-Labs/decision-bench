@@ -8,7 +8,7 @@ from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any, Literal
 
-from datasets import Dataset, load_dataset  # type: ignore[import-untyped]
+from datasets import Dataset, load_dataset
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from decision_bench.schemas import DecisionExample

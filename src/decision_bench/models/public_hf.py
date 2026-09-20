@@ -106,7 +106,7 @@ class NanoJevHFDecisionModel:
         if int(run_config.get("max_length", 0)) != NANOJEV_MAX_LENGTH:
             raise RuntimeError("unexpected NanoJev max_length")
 
-        class DecisionModel(nn.Module):  # type: ignore[misc]
+        class DecisionModel(nn.Module):
             def __init__(self, backbone: Any, set_head: str) -> None:
                 super().__init__()
                 hidden = int(backbone.config.hidden_size)
@@ -198,7 +198,9 @@ class NanoJevHFDecisionModel:
         self._torch = torch
         self.tokenizer = cast(
             Any,
-            AutoTokenizer.from_pretrained(model_dir / "tokenizer", local_files_only=True),
+            AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+                model_dir / "tokenizer", local_files_only=True
+            ),
         )
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -206,7 +208,7 @@ class NanoJevHFDecisionModel:
             model_dir / "backbone_config", local_files_only=True, trust_remote_code=False
         )
         body_config.use_cache = False
-        backbone = AutoModel.from_config(
+        backbone = AutoModel.from_config(  # type: ignore[no-untyped-call]
             body_config,
             attn_implementation=attn_implementation,
             trust_remote_code=False,
@@ -305,13 +307,10 @@ class NanoJevHFDecisionModel:
     def _fit(self, example: DecisionExample) -> tuple[DecisionExample, TextTruncationReport]:
         if example.primitive is Primitive.ORDINAL_SCORING and len(example.candidates) > 10:
             raise ValueError("NanoJev score supports at most 10 ordered levels")
-        return cast(
-            tuple[DecisionExample, TextTruncationReport],
-            fit_example_to_token_budget(
-                example,
-                max_input_tokens=NANOJEV_MAX_LENGTH,
-                count_tokens=self._compiled_prompt_tokens,
-            ),
+        return fit_example_to_token_budget(
+            example,
+            max_input_tokens=NANOJEV_MAX_LENGTH,
+            count_tokens=self._compiled_prompt_tokens,
         )
 
     def _compiled_prompt_tokens(self, example: DecisionExample) -> int:
@@ -533,13 +532,10 @@ class OpenJevHFDecisionModel:
     def _fit(self, example: DecisionExample) -> tuple[DecisionExample, TextTruncationReport]:
         if example.primitive is Primitive.ORDINAL_SCORING and len(example.candidates) > 10:
             raise ValueError("OpenJev score supports at most 10 ordered levels")
-        return cast(
-            tuple[DecisionExample, TextTruncationReport],
-            fit_example_to_token_budget(
-                example,
-                max_input_tokens=OPENJEV_MAX_LENGTH,
-                count_tokens=self._compiled_prompt_tokens,
-            ),
+        return fit_example_to_token_budget(
+            example,
+            max_input_tokens=OPENJEV_MAX_LENGTH,
+            count_tokens=self._compiled_prompt_tokens,
         )
 
     def _compiled_prompt_tokens(self, example: DecisionExample) -> int:
@@ -596,7 +592,10 @@ class SystemOneHFDecisionModel:
         try:
             import torch
             from peft import PeftModel
-            from transformers import AutoTokenizer, Qwen3_5TextForSequenceClassification
+            from transformers import AutoTokenizer
+            from transformers import (  # type: ignore[attr-defined]
+                Qwen3_5TextForSequenceClassification,
+            )
         except ImportError as error:
             raise RuntimeError(
                 "System One support requires the decision-bench[hf] extra"
@@ -610,7 +609,10 @@ class SystemOneHFDecisionModel:
         self.attn_implementation = attn_implementation
         self._torch = torch
         self.tokenizer = cast(
-            Any, AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
+            Any,
+            AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+                model_dir, local_files_only=True
+            ),
         )
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token

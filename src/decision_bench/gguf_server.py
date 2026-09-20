@@ -144,18 +144,18 @@ def create_app(engine: GgufDecisionEngine) -> Any:
 
     app = FastAPI(title="GGUF Decision API", version="0.1.0")
 
-    @app.get("/health")
+    @app.get("/health")  # type: ignore[untyped-decorator]
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.get("/v1/models")
+    @app.get("/v1/models")  # type: ignore[untyped-decorator]
     def models() -> dict[str, Any]:
         return {
             "object": "list",
             "data": [{"id": engine.model_path.name, "object": "model", "owned_by": "local"}],
         }
 
-    @app.post("/v1/systemone")
+    @app.post("/v1/systemone")  # type: ignore[untyped-decorator]
     def system_one(request: SystemOneRequest) -> dict[str, Any]:
         answers = {
             question_id: engine.predict(request.state, question)
