@@ -108,7 +108,7 @@ class NimbleHFDecisionModel:
         try:
             import torch
             from peft import PeftModel
-            from transformers import (  # type: ignore[attr-defined]
+            from transformers import (
                 AutoTokenizer,
                 Qwen3_5ForConditionalGeneration,
             )

@@ -198,7 +198,7 @@ class NanoJevHFDecisionModel:
         self._torch = torch
         self.tokenizer = cast(
             Any,
-            AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+            AutoTokenizer.from_pretrained(
                 model_dir / "tokenizer", local_files_only=True
             ),
         )
@@ -592,7 +592,7 @@ class SystemOneHFDecisionModel:
         try:
             import torch
             from peft import PeftModel
-            from transformers import (  # type: ignore[attr-defined]
+            from transformers import (
                 AutoTokenizer,
                 Qwen3_5TextForSequenceClassification,
             )
@@ -610,7 +610,7 @@ class SystemOneHFDecisionModel:
         self._torch = torch
         self.tokenizer = cast(
             Any,
-            AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+            AutoTokenizer.from_pretrained(
                 model_dir, local_files_only=True
             ),
         )
