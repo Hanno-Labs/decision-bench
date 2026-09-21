@@ -1,0 +1,94 @@
+site_name: DecisionBench
+site_description: The evaluation ecosystem for decision models
+site_url: https://hanno-labs.github.io/decision-bench/
+docs_dir: docs/
+repo_url: https://github.com/Hanno-Labs/decision-bench
+edit_uri: blob/main/docs/
+watch: [src/decision_bench/, docs/]
+
+theme:
+  features:
+    - navigation.tracking
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.action.edit
+    - content.action.view
+    - content.code.copy
+    - content.tabs.link
+    - navigation.footer
+  palette:
+    - media: "(prefers-color-scheme)"
+      scheme: default
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/brightness-auto
+        name: Switch theme
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+nav:
+  - Get Started:
+      - Home: index.md
+      - Installation: installation.md
+      - Usage:
+          - Get Started: get_started/usage/get_started.md
+          - Select Tasks and Views: get_started/usage/selecting_tasks.md
+          - Run Evaluation: get_started/usage/running_the_evaluation.md
+          - Load Results: get_started/usage/loading_results.md
+          - Command Line: get_started/usage/cli.md
+          - Run the Leaderboard: get_started/usage/leaderboard.md
+  - Contributing:
+      - Overview: contributing/index.md
+      - Add a Model: contributing/adding_a_model.md
+      - Submit Results: contributing/submitting_results.md
+      - Add a Task: contributing/adding_a_task.md
+      - Add a Benchmark: contributing/adding_a_benchmark.md
+  - Overview:
+      - Benchmark: overview/benchmark.md
+      - Tasks and Views: overview/tasks.md
+      - Models: overview/models.md
+      - Results Ecosystem: overview/results_ecosystem.md
+  - API:
+      - Benchmark: api/benchmark.md
+      - Evaluation: api/evaluation.md
+      - Results: api/results.md
+      - Schemas: api/schemas.md
+  - Leaderboard: https://huggingface.co/spaces/Hanno-Labs/decision-bench-leaderboard
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            heading_level: 3
+            show_root_heading: true
+            show_source: true
+
+copyright: DecisionBench is available under Apache-2.0.
+validation:
+  invalid_links: false

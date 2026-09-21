@@ -51,10 +51,11 @@ def test_summary_uses_latest_attempt_per_row(tmp_path: Path) -> None:
     raw_path = tmp_path / "raw.jsonl"
     records = [
         {"status": "error", "row_id": "a"},
-        {
-            "status": "ok",
-            "row_id": "a",
-            "primitive": "binary_classification",
+            {
+                "status": "ok",
+                "row_id": "a",
+                "task_name": "task",
+                "primitive": "binary_classification",
             "family": "verification",
             "domain": "web",
             "scored": {"correct": True, "probabilities": [0.1, 0.9]},
@@ -71,6 +72,7 @@ def test_summary_uses_latest_attempt_per_row(tmp_path: Path) -> None:
     assert summary["successful_rows"] == 1
     assert summary["error_rows"] == 0
     assert summary["metrics"]["overall"]["expected_calibration_error"] == pytest.approx(0.1)
+    assert summary["metrics"]["task:task"]["accuracy"] == 1.0
     assert summary["model_input_truncation"] == {
         "reported_rows": 1,
         "truncated_rows": 1,

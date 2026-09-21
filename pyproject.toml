@@ -29,12 +29,20 @@ gguf = [
   "llama-cpp-python>=0.3,<1",
   "uvicorn>=0.35,<1",
 ]
+leaderboard = [
+  "gradio>=5.49,<7",
+  "pandas>=2.3,<3",
+]
 
 [dependency-groups]
 dev = [
   "mypy>=1.18,<2",
   "pytest>=8.4,<9",
   "ruff>=0.13,<1",
+]
+docs = [
+  "mkdocstrings-python>=1.18,<2",
+  "zensical==0.0.57",
 ]
 
 [project.scripts]

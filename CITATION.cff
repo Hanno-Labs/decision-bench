@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use DecisionBench, cite this software and the source datasets for the tasks you evaluate."
+title: "DecisionBench"
+type: software
+authors:
+  - family-names: Solka
+    given-names: Stephen
+repository-code: "https://github.com/Hanno-Labs/decision-bench"
+url: "https://hanno-labs.github.io/decision-bench/"
+license: Apache-2.0
+version: 0.1.0
+date-released: 2026-09-21

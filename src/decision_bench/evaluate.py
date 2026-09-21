@@ -503,6 +503,12 @@ def _run_evaluation(
                     record = {
                         "status": "error",
                         "row_id": example.row_id,
+                        "task_name": example.task_name,
+                        "primitive": example.primitive.value,
+                        "family": example.family,
+                        "domain": example.domain,
+                        "candidate_count": len(example.candidates),
+                        "example": example.model_dump(mode="json"),
                         "error_type": type(error).__name__,
                         "error": str(error),
                     }
@@ -541,6 +547,7 @@ def _successful_record(example: DecisionExample, result: Any) -> dict[str, Any]:
     record = {
         "status": "ok",
         "row_id": example.row_id,
+        "task_name": example.task_name,
         "primitive": example.primitive.value,
         "family": example.family,
         "domain": example.domain,
@@ -572,6 +579,9 @@ def summarize_raw(raw_path: Path) -> dict[str, Any]:
             errors += 1
             continue
         groups["overall"].append(record)
+        task_name = _record_dimension(record, "task_name")
+        if task_name is not None:
+            groups[f"task:{task_name}"].append(record)
         groups[f"primitive:{record['primitive']}"].append(record)
         groups[f"family:{record['family']}"].append(record)
         groups[f"domain:{record['domain']}"].append(record)
@@ -616,6 +626,13 @@ def summarize_raw(raw_path: Path) -> dict[str, Any]:
             if records
         },
     }
+
+
+def _record_dimension(record: dict[str, Any], name: str) -> str | None:
+    value = record.get(name)
+    if value is None and isinstance(record.get("example"), dict):
+        value = record["example"].get(name)
+    return str(value) if value is not None else None
 
 
 def expected_calibration_error(

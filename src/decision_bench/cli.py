@@ -21,6 +21,7 @@ from decision_bench.evaluate import (
     select_smoke_examples,
 )
 from decision_bench.prompt import prompt_sha256
+from decision_bench.results import ModelMetadata, ResultCache
 from decision_bench.task_spec import load_task_spec
 
 app = typer.Typer(no_args_is_help=True)
@@ -122,6 +123,73 @@ def summarize_run(
 
     summary = refresh_summary(output_dir)
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))
+
+
+@app.command("stage-result")
+def stage_result(
+    run_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    results_repo_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    model_id: Annotated[str, typer.Option()],
+    model_revision: Annotated[str, typer.Option()],
+    artifact_uri: Annotated[str, typer.Option()],
+    dataset_revision: Annotated[str, typer.Option()],
+    adapter: Annotated[str, typer.Option()] = "decision-bench",
+    probability_source: Annotated[str, typer.Option()] = "complete_candidate_distribution",
+    model_url: Annotated[str | None, typer.Option()] = None,
+    open_weights: Annotated[bool | None, typer.Option()] = None,
+    parameter_count: Annotated[int | None, typer.Option(min=0)] = None,
+    benchmark_name: Annotated[str, typer.Option()] = "DecisionBench",
+    benchmark_version: Annotated[str, typer.Option()] = "1.0",
+    task_spec_sha256: Annotated[str | None, typer.Option()] = None,
+    create_pr: Annotated[bool, typer.Option()] = False,
+) -> None:
+    """Stage one content-addressed result record and optionally open a PR."""
+
+    cache = ResultCache(results_repo_dir)
+    result_path = cache.stage_result(
+        run_dir,
+        model=ModelMetadata(
+            name=model_id,
+            revision=model_revision,
+            url=model_url,
+            adapter=adapter,
+            probability_source=probability_source,
+            open_weights=open_weights,
+            parameter_count=parameter_count,
+        ),
+        artifact_uri=artifact_uri,
+        dataset_revision=dataset_revision,
+        benchmark_name=benchmark_name,
+        benchmark_version=benchmark_version,
+        task_spec_sha256=task_spec_sha256,
+    )
+    typer.echo(json.dumps(cache.submit_result(result_path, create_pr=create_pr), indent=2))
+
+
+@app.command("list-results")
+def list_results(
+    results_repo_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    view: Annotated[str, typer.Option()] = "overall",
+) -> None:
+    """Print reviewed results from a local results-repository checkout."""
+
+    typer.echo(json.dumps(ResultCache(results_repo_dir).to_records(view=view), indent=2))
+
+
+@app.command("leaderboard")
+def leaderboard(
+    results_dir: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path(
+        "../decision-bench-results"
+    ),
+    host: Annotated[str, typer.Option()] = "127.0.0.1",
+    port: Annotated[int, typer.Option(min=1, max=65535)] = 7860,
+    share: Annotated[bool, typer.Option()] = False,
+) -> None:
+    """Launch the interactive leaderboard from reviewed result records."""
+
+    from decision_bench.leaderboard import launch
+
+    launch(results_dir, host=host, port=port, share=share)
 
 
 @app.command("run-hf")

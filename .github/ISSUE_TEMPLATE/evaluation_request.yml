@@ -1,0 +1,33 @@
+name: Evaluation request
+description: Request a model evaluation on DecisionBench
+title: "[Evaluation]: "
+labels: [evaluation]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: Public model ID or hosted API route.
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Immutable revision
+      description: Commit SHA, release, or an explanation of why the provider exposes no revision.
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Decision and probability contract
+      description: Explain the supported primitives, candidate limits, and probability source.
+    validations:
+      required: true
+  - type: checkboxes
+    id: contamination
+    attributes:
+      label: Data integrity
+      options:
+        - label: I am not aware of DecisionBench evaluation rows being used for training.
+          required: true

@@ -1,0 +1,18 @@
+name: Model adapter
+description: Propose or contribute a DecisionBench model adapter
+title: "[Model]: "
+labels: [model]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Model ID
+    validations:
+      required: true
+  - type: textarea
+    id: surface
+    attributes:
+      label: Native inference surface
+      description: Describe inputs, outputs, probabilities, candidate limits, and revision pinning.
+    validations:
+      required: true
