@@ -10,8 +10,8 @@
 </p>
 
 <h4 align="center">
-  <a href="https://hanno-labs.github.io/decision-bench/installation/">Installation</a> ·
-  <a href="https://hanno-labs.github.io/decision-bench/">Documentation</a> ·
+  <a href="https://ubiquitous-bassoon-zzmjggp.pages.github.io/installation/">Installation</a> ·
+  <a href="https://ubiquitous-bassoon-zzmjggp.pages.github.io/">Documentation</a> ·
   <a href="https://huggingface.co/spaces/Hanno-Labs/decision-bench-leaderboard">Leaderboard</a> ·
   <a href="https://github.com/Hanno-Labs/decision-bench-results">Results</a> ·
   <a href="#citing">Citing</a>
@@ -30,7 +30,7 @@ uv add git+https://github.com/Hanno-Labs/decision-bench.git
 ## Example Usage
 
 Load the pinned benchmark and run a model through the Python API. See the
-[evaluation guide](https://hanno-labs.github.io/decision-bench/get_started/usage/running_the_evaluation/)
+[evaluation guide](https://ubiquitous-bassoon-zzmjggp.pages.github.io/get_started/usage/running_the_evaluation/)
 for every supported model surface.
 
 ```python
@@ -67,16 +67,16 @@ decision-bench run-openrouter task_specs/decisionbench-dev.toml results/luna \
 | 🤝 [Contributing] | Add models, tasks, benchmarks, and result records |
 
 [Leaderboard]: https://huggingface.co/spaces/Hanno-Labs/decision-bench-leaderboard
-[Get Started]: https://hanno-labs.github.io/decision-bench/
-[Tasks and Views]: https://hanno-labs.github.io/decision-bench/overview/tasks/
-[Models]: https://hanno-labs.github.io/decision-bench/overview/models/
-[Results]: https://hanno-labs.github.io/decision-bench/get_started/usage/loading_results/
-[Evaluation]: https://hanno-labs.github.io/decision-bench/get_started/usage/running_the_evaluation/
-[Contributing]: https://hanno-labs.github.io/decision-bench/contributing/
+[Get Started]: https://ubiquitous-bassoon-zzmjggp.pages.github.io/
+[Tasks and Views]: https://ubiquitous-bassoon-zzmjggp.pages.github.io/overview/tasks/
+[Models]: https://ubiquitous-bassoon-zzmjggp.pages.github.io/overview/models/
+[Results]: https://ubiquitous-bassoon-zzmjggp.pages.github.io/get_started/usage/loading_results/
+[Evaluation]: https://ubiquitous-bassoon-zzmjggp.pages.github.io/get_started/usage/running_the_evaluation/
+[Contributing]: https://ubiquitous-bassoon-zzmjggp.pages.github.io/contributing/
 
 ## Citing
 
 DecisionBench is under active development. Until the benchmark paper is published, cite the
 repository and the individual datasets listed in the
-[task catalog](https://hanno-labs.github.io/decision-bench/overview/tasks/). Machine-readable
+[task catalog](https://ubiquitous-bassoon-zzmjggp.pages.github.io/overview/tasks/). Machine-readable
 citation metadata lives in [`CITATION.cff`](CITATION.cff).
