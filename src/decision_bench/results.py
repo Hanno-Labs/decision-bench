@@ -236,7 +236,7 @@ class ResultCache:
             ),
             mean_latency_seconds=_optional_float(overall.get("mean_latency_seconds")),
             views={
-                str(name): ViewMetrics.model_validate(_object(metrics))
+                str(name): _view_metrics(metrics)
                 for name, metrics in _object(summary["metrics"]).items()
             },
             artifact=ArtifactReference(
@@ -316,6 +316,17 @@ def _optional_float(value: object) -> float | None:
     if not isinstance(value, int | float | str):
         raise TypeError(f"expected a number, got {type(value)!r}")
     return float(value)
+
+
+def _view_metrics(value: object) -> ViewMetrics:
+    metrics = _object(value)
+    return ViewMetrics.model_validate(
+        {
+            name: metrics[name]
+            for name in ViewMetrics.model_fields
+            if name in metrics
+        }
+    )
 
 
 def _classify_errors(raw_path: Path) -> dict[str, int]:

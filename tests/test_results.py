@@ -32,6 +32,7 @@ def test_stage_and_load_result(tmp_path: Path) -> None:
                         "mean_negative_log_likelihood": 0.1,
                         "expected_calibration_error": 0.2,
                         "mean_latency_seconds": 0.3,
+                        "ece_bins": 15,
                     }
                 },
             },
