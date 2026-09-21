@@ -54,12 +54,14 @@ def run_openrouter_evaluation(
     reasoning_effort: str,
     seed: int,
     concurrency: int,
+    reasoning_family_effort: str | None = None,
 ) -> dict[str, Any]:
     """Evaluate rows concurrently with append-only raw output and resumability."""
 
     with OpenRouterDecisionModel(
         model=model,
         reasoning_effort=reasoning_effort,
+        reasoning_family_effort=reasoning_family_effort,
         seed=seed,
     ) as decision_model:
         return _run_evaluation(
@@ -70,6 +72,12 @@ def run_openrouter_evaluation(
             metadata={
                 "model": model,
                 "reasoning_effort": reasoning_effort,
+                "reasoning_family_effort": reasoning_family_effort,
+                "reasoning_effort_policy": (
+                    "reasoning-family-override-v1"
+                    if reasoning_family_effort is not None
+                    else "uniform-v1"
+                ),
                 "seed": seed,
                 "prompt_version": PROMPT_VERSION,
                 "prompt_sha256": prompt_sha256(),
