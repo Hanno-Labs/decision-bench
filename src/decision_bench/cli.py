@@ -62,6 +62,7 @@ def run_openrouter(
     project_root: Annotated[Path | None, typer.Option()] = None,
     model: Annotated[str, typer.Option()] = "openai/gpt-5.6-luna",
     reasoning_effort: Annotated[str, typer.Option()] = "minimal",
+    reasoning_family_effort: Annotated[str | None, typer.Option()] = None,
     seed: Annotated[int, typer.Option()] = 0,
     concurrency: Annotated[int, typer.Option(min=1, max=256)] = 32,
     smoke: Annotated[bool, typer.Option()] = False,
@@ -78,6 +79,7 @@ def run_openrouter(
         output_dir,
         model=model,
         reasoning_effort=reasoning_effort,
+        reasoning_family_effort=reasoning_family_effort,
         seed=seed,
         concurrency=concurrency,
     )

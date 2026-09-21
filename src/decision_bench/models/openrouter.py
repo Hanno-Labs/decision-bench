@@ -26,6 +26,19 @@ class OpenRouterResponse(BaseModel):
     input_contract: dict[str, Any] | None = None
 
 
+def reasoning_effort_for_example(
+    example: DecisionExample,
+    *,
+    default_reasoning_effort: str,
+    reasoning_family_effort: str | None,
+) -> str:
+    """Select the request effort without changing non-reasoning comparators."""
+
+    if example.family == "reasoning" and reasoning_family_effort is not None:
+        return reasoning_family_effort
+    return default_reasoning_effort
+
+
 class OpenRouterDecisionModel:
     """Run DecisionBench rows through OpenRouter chat completions."""
 
@@ -34,6 +47,7 @@ class OpenRouterDecisionModel:
         *,
         model: str = "openai/gpt-5.6-luna",
         reasoning_effort: str = "medium",
+        reasoning_family_effort: str | None = None,
         seed: int = 0,
         api_key: str | None = None,
         timeout_seconds: float = 180.0,
@@ -44,6 +58,7 @@ class OpenRouterDecisionModel:
             raise RuntimeError("OPENROUTER_API_KEY is required")
         self.model = model
         self.reasoning_effort = reasoning_effort
+        self.reasoning_family_effort = reasoning_family_effort
         self.seed = seed
         self.max_retries = max_retries
         self._client = httpx.Client(
@@ -58,7 +73,11 @@ class OpenRouterDecisionModel:
         request = build_openrouter_request(
             example,
             model=self.model,
-            reasoning_effort=self.reasoning_effort,
+            reasoning_effort=reasoning_effort_for_example(
+                example,
+                default_reasoning_effort=self.reasoning_effort,
+                reasoning_family_effort=self.reasoning_family_effort,
+            ),
             seed=self.seed,
         )
         started = time.monotonic()

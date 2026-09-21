@@ -5,6 +5,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from decision_bench.models.openrouter import reasoning_effort_for_example
 from decision_bench.prompt import (
     build_openrouter_request,
     fit_example_to_token_budget,
@@ -47,6 +48,28 @@ def test_response_schema_has_exact_candidate_count() -> None:
     assert probabilities["maxItems"] == 2
     assert request["provider"] == {"require_parameters": True}
     assert "temperature" not in request
+
+
+def test_reasoning_effort_override_only_applies_to_reasoning_family() -> None:
+    ordinary = example()
+    reasoning = ordinary.model_copy(update={"family": "reasoning"})
+
+    assert (
+        reasoning_effort_for_example(
+            ordinary,
+            default_reasoning_effort="none",
+            reasoning_family_effort="max",
+        )
+        == "none"
+    )
+    assert (
+        reasoning_effort_for_example(
+            reasoning,
+            default_reasoning_effort="none",
+            reasoning_family_effort="max",
+        )
+        == "max"
+    )
 
 
 def test_text_truncation_preserves_frozen_decision_contract() -> None:
