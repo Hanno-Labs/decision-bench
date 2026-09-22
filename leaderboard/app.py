@@ -82,7 +82,7 @@ with gr.Blocks(title="DecisionBench Leaderboard") as demo:
     gr.Markdown(
         "[Benchmark](https://github.com/Hanno-Labs/decision-bench) · "
         "[Reviewed results](https://github.com/Hanno-Labs/decision-bench-results) · "
-        "[Documentation](https://ubiquitous-bassoon-zzmjggp.pages.github.io/)"
+        "[Documentation](https://hanno-labs.github.io/decision-bench/)"
     )
 
 demo.launch()
