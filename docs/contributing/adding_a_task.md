@@ -46,9 +46,7 @@ silently rewritten.
    leakage notes, and available reference baselines.
 
 The existing DecisionBench 1.0 tasks happen to share one consolidated dataset release. That is a
-property of that release, not a requirement for new contributions. If you need to build or publish a
-new dataset, the optional generation tooling lives in
-[`Hanno-Labs/decision-bench-data-gen`](https://github.com/Hanno-Labs/decision-bench-data-gen).
+property of that release, not a requirement for new contributions.
 
 ## Task versus benchmark
 

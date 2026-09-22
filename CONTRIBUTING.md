@@ -1,10 +1,8 @@
 # Contributing
 
-DecisionBench separates benchmark execution, dataset generation, and reviewed results:
+DecisionBench separates benchmark execution from reviewed results:
 
 - runtime, adapters, metrics, docs, and leaderboard code live in this repository;
-- data generation and validation live in
-  [`Hanno-Labs/decision-bench-data-gen`](https://github.com/Hanno-Labs/decision-bench-data-gen);
 - accepted result records live in
   [`Hanno-Labs/decision-bench-results`](https://github.com/Hanno-Labs/decision-bench-results).
 
