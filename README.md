@@ -39,7 +39,7 @@ from pathlib import Path
 from decision_bench import get_benchmark
 from decision_bench.evaluate import run_openrouter_evaluation
 
-benchmark = get_benchmark(Path("task_specs/decisionbench-dev.toml"))
+benchmark = get_benchmark("DecisionBench")
 summary = run_openrouter_evaluation(
     list(benchmark.examples), Path("results/luna"),
     model="openai/gpt-5.6-luna", reasoning_effort="minimal",

@@ -16,30 +16,26 @@ legal-retrieval, and citation-verification tasks.
 
 ## Implement the benchmark
 
-Add a task specification under `task_specs/` that records:
+Add a benchmark specification under `task_specs/` that records:
 
-- the benchmark name, version, description, license, and languages;
-- the collection's covered domains and families; and
-- the canonical dataset repository, split, and immutable revision containing exactly the selected
-  task rows.
+- the benchmark name, version, description, and languages; and
+- the registered task names included in the collection.
 
-The normalized dataset release must preserve stable row IDs, source provenance, and content hashes.
-Dataset construction and validation belong in
-[`Hanno-Labs/decision-bench-data-gen`](https://github.com/Hanno-Labs/decision-bench-data-gen).
+Benchmarks do not own, copy, or republish task datasets. Each selected task already pins its own
+dataset repository, revision, split, metadata, and transform.
 
 Load the specification before submission and verify the expected task and row counts:
 
 ```python
-from pathlib import Path
-
 from decision_bench import get_benchmark
 
-benchmark = get_benchmark(Path("task_specs/decisionbench-legal.toml"))
+benchmark = get_benchmark("DecisionBench Legal")
 print(benchmark.spec.name, len(benchmark.examples))
-print(sorted({row.task_name for row in benchmark.examples}))
+print([task.metadata.name for task in benchmark.tasks])
 ```
 
-Add tests for the specification, frozen revision, task membership, row count, and duplicate row IDs.
+Add tests for the specification, task membership, row count, and duplicate row IDs. Dataset revision
+checks remain with each task.
 
 ## Publish it on the leaderboard
 
