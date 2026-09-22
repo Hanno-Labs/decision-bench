@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DEFAULT_RESULTS_REPOSITORY = "https://github.com/Hanno-Labs/decision-bench-results.git"
 ENGLISH_SUITE_VIEW = "suite:DecisionBench(eng, v1)"
+ModelType = Literal["decision-model", "language-model", "classifier"]
 
 
 class ModelMetadata(BaseModel):
@@ -22,6 +23,7 @@ class ModelMetadata(BaseModel):
 
     name: str = Field(min_length=1)
     revision: str = Field(min_length=1)
+    model_type: ModelType
     url: str | None = None
     adapter: str = Field(min_length=1)
     probability_source: str = Field(min_length=1)
@@ -145,6 +147,7 @@ class ResultCache:
                 {
                     "model": result.model.name,
                     "revision": result.model.revision,
+                    "model_type": result.model.model_type,
                     "benchmark": result.benchmark_name,
                     "benchmark_version": result.benchmark_version,
                     "view": view,

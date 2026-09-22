@@ -52,6 +52,7 @@ def test_stage_and_load_result(tmp_path: Path) -> None:
         model=ModelMetadata(
             name="org/model",
             revision="revision",
+            model_type="decision-model",
             adapter="test",
             probability_source="test",
         ),
@@ -62,6 +63,7 @@ def test_stage_and_load_result(tmp_path: Path) -> None:
     assert result_path.is_file()
     [loaded] = cache.load_results()
     assert loaded.coverage == 0.5
+    assert loaded.model.model_type == "decision-model"
     assert loaded.primary_accuracy == 0.5
     assert loaded.unsupported_rows == 0
     assert loaded.error_rows == 1
@@ -107,6 +109,7 @@ def test_stage_result_without_published_artifact(tmp_path: Path) -> None:
         model=ModelMetadata(
             name="org/model",
             revision="revision",
+            model_type="language-model",
             adapter="test",
             probability_source="test",
         ),
@@ -196,6 +199,7 @@ def test_stage_result_computes_non_reasoning_suite_ece_from_raw_rows(
         model=ModelMetadata(
             name="org/model",
             revision="revision",
+            model_type="classifier",
             adapter="test",
             probability_source="test",
         ),
