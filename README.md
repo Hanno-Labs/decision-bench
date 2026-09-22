@@ -29,30 +29,23 @@ uv add git+https://github.com/Hanno-Labs/decision-bench.git
 
 ## Example Usage
 
-Load the pinned benchmark and run a model through the Python API. See the
-[evaluation guide](https://ubiquitous-bassoon-zzmjggp.pages.github.io/get_started/usage/running_the_evaluation/)
-for every supported model surface.
-
-```python
-from pathlib import Path
-
-from decision_bench import get_benchmark
-from decision_bench.evaluate import run_openrouter_evaluation
-
-benchmark = get_benchmark("DecisionBench")
-summary = run_openrouter_evaluation(
-    list(benchmark.examples), Path("results/luna"),
-    model="openai/gpt-5.6-luna", reasoning_effort="minimal",
-    seed=0, concurrency=32,
-)
-```
-
-You can also use the CLI:
+Smoke-test a supported decision model on the pinned benchmark. This example uses
+[Bosun v3.1 0.6B](https://huggingface.co/Hanno-Labs/bosun-v3.1-0.6b), whose
+native decision-token readout is supported directly by `run-hf`.
 
 ```bash
-decision-bench run-openrouter task_specs/decisionbench-dev.toml results/luna \
-  --model openai/gpt-5.6-luna --reasoning-effort minimal
+hf download Hanno-Labs/bosun-v3.1-0.6b \
+  --revision aaa9dd06d4d6501b33df61942472fed9284bc5e6 \
+  --local-dir models/bosun-v3.1-0.6b
+
+decision-bench run-hf task_specs/decisionbench-dev.toml \
+  models/bosun-v3.1-0.6b results/bosun-v3.1-0.6b --smoke
 ```
+
+Before running anything else, see the complete
+[supported adapters and models](https://ubiquitous-bassoon-zzmjggp.pages.github.io/overview/models/).
+If your model is listed, use its runner; only add an adapter when its native
+decision readout is not already supported.
 
 ## Overview
 
@@ -61,7 +54,7 @@ decision-bench run-openrouter task_specs/decisionbench-dev.toml results/luna \
 | 📈 [Leaderboard] | Compare reviewed results and filter by task, family, domain, or primitive |
 | 🏃 [Get Started] | Install DecisionBench and run the frozen suite |
 | 📋 [Tasks and Views] | Understand the 23,900 rows, nine families, three primitives, and reasoning track |
-| 🤖 [Models] | Add or use model adapters with explicit probability and coverage contracts |
+| 🤖 [Models] | See supported adapters and models, or add a new native readout contract |
 | 📊 [Results] | Load, inspect, and submit reproducible results |
 | 🧪 [Evaluation] | Learn the metrics, artifacts, and comparability rules |
 | 🤝 [Contributing] | Add models, tasks, benchmarks, and result records |

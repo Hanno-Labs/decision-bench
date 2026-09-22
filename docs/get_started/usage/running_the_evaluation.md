@@ -31,10 +31,15 @@ decision-bench run-hf \
   --smoke
 ```
 
-For another model architecture, first [add a model adapter](../../contributing/adding_a_model.md)
-that maps the model's native output to candidate probabilities. Existing public model adapters use
-`run-public-hf`; `decision-bench run-public-hf --help` lists their model-specific arguments. Start
-with `--smoke`, inspect the saved raw rows, and then rerun without it for the complete benchmark.
+## Check supported adapters first
+
+Before adding anything, check [Supported adapters and models](../../overview/models.md). It names
+the models and native output contracts already handled by DecisionBench, and the runner to use for
+each one. If your model is listed, use that runner; you do not need to write an adapter.
+
+If its native decision readout is not listed, [add a model adapter](../../contributing/adding_a_model.md)
+that maps it to candidate probabilities. Start every new adapter with `--smoke`, inspect the saved
+raw rows, and then rerun without it for the complete benchmark.
 
 Every run writes `raw.jsonl`, `summary.json`, and `manifest.json` to its output directory. After a
 full run, follow [Submit Results](../../contributing/submitting_results.md) to validate the local run,
