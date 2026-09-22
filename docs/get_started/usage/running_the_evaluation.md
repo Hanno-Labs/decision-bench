@@ -37,8 +37,8 @@ that maps the model's native output to candidate probabilities. Existing public 
 with `--smoke`, inspect the saved raw rows, and then rerun without it for the complete benchmark.
 
 Every run writes `raw.jsonl`, `summary.json`, and `manifest.json` to its output directory. After a
-full run, follow [Submit Results](../../contributing/submitting_results.md) to publish the artifact
-and open a result pull request.
+full run, follow [Submit Results](../../contributing/submitting_results.md) to validate the local run,
+stage its compact result record, and open a result pull request.
 
 ## Evaluate a hosted API model
 
@@ -65,5 +65,6 @@ latency. Views are available by task, family, domain, primitive, and candidate c
 
 Comparable results must share the same benchmark revision and declared view. Every record preserves
 the model revision, adapter, probability source, prompt contract, eligibility definition,
-truncation policy, row counts, and hashes of the durable raw artifacts. Hosted models without an
-immutable provider revision are dated service snapshots, not reproducible weight snapshots.
+truncation policy, and row counts. A submission may additionally link a content-addressed raw
+artifact. Hosted models without an immutable provider revision are dated service snapshots, not
+reproducible weight snapshots.
