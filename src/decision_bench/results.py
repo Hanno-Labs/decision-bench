@@ -12,6 +12,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DEFAULT_RESULTS_REPOSITORY = "https://github.com/Hanno-Labs/decision-bench-results.git"
+ENGLISH_SUITE_VIEW = "suite:DecisionBench(eng, v1)"
 
 
 class ModelMetadata(BaseModel):
@@ -214,6 +215,14 @@ class ResultCache:
         if len(task_hash) != 64:
             raise ValueError("a 64-character task_spec_sha256 is required")
 
+        views = {
+            str(name): _view_metrics(metrics)
+            for name, metrics in _object(summary["metrics"]).items()
+        }
+        suite_metrics = _non_reasoning_suite_metrics(raw_path)
+        if suite_metrics is not None:
+            views[ENGLISH_SUITE_VIEW] = suite_metrics
+
         record = DecisionBenchResult(
             benchmark_name=benchmark_name,
             benchmark_version=benchmark_version,
@@ -235,10 +244,7 @@ class ResultCache:
                 overall.get("expected_calibration_error")
             ),
             mean_latency_seconds=_optional_float(overall.get("mean_latency_seconds")),
-            views={
-                str(name): _view_metrics(metrics)
-                for name, metrics in _object(summary["metrics"]).items()
-            },
+            views=views,
             artifact=(
                 ArtifactReference(
                     uri=artifact_uri,
@@ -353,6 +359,83 @@ def _classify_errors(raw_path: Path) -> dict[str, int]:
         else:
             error_rows += 1
     return {"unsupported_rows": unsupported_rows, "error_rows": error_rows}
+
+
+def _non_reasoning_suite_metrics(raw_path: Path) -> ViewMetrics | None:
+    """Compute the English suite metrics from successful non-reasoning rows.
+
+    ECE is nonlinear, so it cannot be reconstructed by subtracting or
+    averaging the overall and reasoning-family ECE values. The raw artifact is
+    the authoritative source for this suite view.
+    """
+
+    latest_by_row_id: dict[str, dict[str, Any]] = {}
+    with raw_path.open() as handle:
+        for line in handle:
+            record = _object(json.loads(line))
+            latest_by_row_id[str(record["row_id"])] = record
+
+    records = [
+        record
+        for record in latest_by_row_id.values()
+        if record.get("status") == "ok"
+        and _record_dimension(record, "family") != "reasoning"
+        and isinstance(record.get("scored"), dict)
+        and "negative_log_likelihood" in record
+        and "latency_seconds" in record
+    ]
+    if not records:
+        return None
+    return ViewMetrics(
+        rows=len(records),
+        accuracy=sum(bool(record["scored"]["correct"]) for record in records)
+        / len(records),
+        mean_negative_log_likelihood=sum(
+            float(record["negative_log_likelihood"]) for record in records
+        )
+        / len(records),
+        expected_calibration_error=_expected_calibration_error(records),
+        mean_latency_seconds=sum(
+            float(record["latency_seconds"]) for record in records
+        )
+        / len(records),
+    )
+
+
+def _record_dimension(record: dict[str, Any], name: str) -> str | None:
+    value = record.get(name)
+    if value is None and isinstance(record.get("example"), dict):
+        value = record["example"].get(name)
+    return str(value) if value is not None else None
+
+
+def _expected_calibration_error(
+    records: list[dict[str, Any]],
+    *,
+    bins: int = 15,
+) -> float:
+    """Return equal-width top-label ECE over successful predictions."""
+
+    counts = [0] * bins
+    confidence_sums = [0.0] * bins
+    correctness_sums = [0.0] * bins
+    for record in records:
+        probabilities = record["scored"]["probabilities"]
+        confidence = max(float(value) for value in probabilities)
+        bin_index = min(int(confidence * bins), bins - 1)
+        counts[bin_index] += 1
+        confidence_sums[bin_index] += confidence
+        correctness_sums[bin_index] += float(bool(record["scored"]["correct"]))
+    total = len(records)
+    return sum(
+        (count / total) * abs(
+            correctness_sum / count - confidence_sum / count
+        )
+        for count, confidence_sum, correctness_sum in zip(
+            counts, confidence_sums, correctness_sums, strict=True
+        )
+        if count
+    )
 
 
 def _safe_name(value: str) -> str:
