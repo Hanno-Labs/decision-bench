@@ -39,7 +39,7 @@ from pathlib import Path
 from decision_bench import get_benchmark
 from decision_bench.evaluate import run_openrouter_evaluation
 
-benchmark = get_benchmark(Path("task_specs/decisionbench-dev.toml"))
+benchmark = get_benchmark("DecisionBench")
 summary = run_openrouter_evaluation(
     list(benchmark.examples), Path("results/luna"),
     model="openai/gpt-5.6-luna", reasoning_effort="minimal",
@@ -73,6 +73,33 @@ decision-bench run-openrouter task_specs/decisionbench-dev.toml results/luna \
 [Results]: https://ubiquitous-bassoon-zzmjggp.pages.github.io/get_started/usage/loading_results/
 [Evaluation]: https://ubiquitous-bassoon-zzmjggp.pages.github.io/get_started/usage/running_the_evaluation/
 [Contributing]: https://ubiquitous-bassoon-zzmjggp.pages.github.io/contributing/
+
+## Contribute
+
+Choose the path that matches what you want to bring to DecisionBench:
+
+<table>
+  <tr>
+    <td width="50%">
+      <h3 align="center"><a href="docs/contributing/adding_a_model.md">🤖 Add a Model →</a></h3>
+      <p>Add a compatibility adapter so DecisionBench can evaluate a new decision model.</p>
+    </td>
+    <td width="50%">
+      <h3 align="center"><a href="docs/contributing/submitting_results.md">📊 Submit Results →</a></h3>
+      <p>Run a supported model and submit its reviewed, reproducible scores.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3 align="center"><a href="docs/contributing/adding_a_task.md">🧩 Add a Task →</a></h3>
+      <p>Contribute one dataset-backed decision problem with labels, provenance, and tests.</p>
+    </td>
+    <td width="50%">
+      <h3 align="center"><a href="docs/contributing/adding_a_benchmark.md">🗂️ Add a Benchmark →</a></h3>
+      <p>Curate existing tasks into a named evaluation for a domain or purpose.</p>
+    </td>
+  </tr>
+</table>
 
 ## Citing
 

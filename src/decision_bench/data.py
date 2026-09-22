@@ -9,30 +9,48 @@ from pathlib import Path
 from typing import Any, Literal
 
 from datasets import Dataset, load_dataset
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from decision_bench.schemas import DecisionExample
 
 
 class DatasetSpec(BaseModel):
-    """Where benchmark rows live without coupling tasks to one storage backend."""
+    """One task's pinned dataset reference.
 
-    model_config = ConfigDict(extra="forbid")
+    The public field names mirror MTEB's task metadata: ``path`` names the
+    Hugging Face dataset repository and ``revision`` pins it.  The legacy
+    ``hf_repo``/``hf_revision``/``hf_config`` names remain accepted while
+    existing task specifications migrate.
+    """
 
-    backend: Literal["local", "huggingface"]
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    backend: Literal["local", "huggingface"] = "huggingface"
     split: str = "test"
-    path: str | None = None
-    hf_repo: str | None = None
-    hf_revision: str | None = None
-    hf_config: str | None = None
+    path: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("path", "hf_repo"),
+    )
+    revision: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("revision", "hf_revision"),
+    )
+    config_name: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("config_name", "hf_config"),
+    )
 
     @model_validator(mode="after")
     def validate_backend(self) -> DatasetSpec:
-        if self.backend == "local" and self.path is None:
-            raise ValueError("local datasets require path")
-        if self.backend == "huggingface" and (self.hf_repo is None or self.hf_revision is None):
-            raise ValueError("Hugging Face datasets require hf_repo and immutable hf_revision")
+        if self.backend == "huggingface" and self.revision is None:
+            raise ValueError("Hugging Face datasets require a pinned revision")
         return self
+
+    @property
+    def cache_key(self) -> tuple[str, str, str | None, str | None, str]:
+        """Return the immutable identity used to share one load across tasks."""
+
+        return (self.backend, self.path, self.revision, self.config_name, self.split)
 
 
 def resolve_local_path(path: str, *, project_root: Path | None = None) -> Path:
@@ -52,7 +70,6 @@ def load_rows(spec: DatasetSpec, *, project_root: Path | None = None) -> Dataset
     """Load raw rows from a local artifact or an immutable HF revision."""
 
     if spec.backend == "local":
-        assert spec.path is not None
         path = resolve_local_path(spec.path, project_root=project_root)
         if not path.exists():
             raise FileNotFoundError(f"DecisionBench dataset not found: {path}")
@@ -63,13 +80,12 @@ def load_rows(spec: DatasetSpec, *, project_root: Path | None = None) -> Dataset
             return load_dataset("json", data_files=str(path), split="train")
         raise ValueError(f"Unsupported local dataset format: {suffix}")
 
-    assert spec.hf_repo is not None
-    assert spec.hf_revision is not None
+    assert spec.revision is not None
     return load_dataset(
-        spec.hf_repo,
-        spec.hf_config,
+        spec.path,
+        spec.config_name,
         split=spec.split,
-        revision=spec.hf_revision,
+        revision=spec.revision,
     )
 
 
@@ -82,9 +98,7 @@ def load_examples(
 
     rows = load_rows(spec, project_root=project_root)
     for row in rows:
-        materialized = dict(_mapping(row))
-        if "state_json" in materialized:
-            materialized = _decode_storage_row(materialized)
+        materialized = decode_storage_row(dict(_mapping(row)))
         yield DecisionExample.model_validate(materialized)
 
 
@@ -94,8 +108,11 @@ def _mapping(row: Mapping[str, Any] | object) -> Mapping[str, Any]:
     return row
 
 
-def _decode_storage_row(row: dict[str, Any]) -> dict[str, Any]:
+def decode_storage_row(row: dict[str, Any]) -> dict[str, Any]:
     """Decode the flat Parquet storage contract into a benchmark example."""
+
+    if "state_json" not in row:
+        return row
 
     return {
         "row_id": row["row_id"],

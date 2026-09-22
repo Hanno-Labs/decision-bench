@@ -9,7 +9,8 @@ from typing import Annotated, Literal
 
 import typer
 
-from decision_bench.data import load_examples, resolve_local_path
+from decision_bench.benchmark import Benchmark, get_benchmark
+from decision_bench.data import resolve_local_path
 from decision_bench.evaluate import (
     refresh_summary,
     run_hf_evaluation,
@@ -22,7 +23,6 @@ from decision_bench.evaluate import (
 )
 from decision_bench.prompt import prompt_sha256
 from decision_bench.results import ModelMetadata, ResultCache
-from decision_bench.task_spec import load_task_spec
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -35,17 +35,16 @@ def inspect_task(
 ) -> None:
     """Validate a task spec and sample its external dataset."""
 
-    spec = load_task_spec(spec_path)
     resolved_root = project_root if project_root is not None else Path.cwd()
-    examples = []
-    for index, example in enumerate(load_examples(spec.dataset, project_root=resolved_root)):
-        if index >= limit:
-            break
-        examples.append(example.model_dump(mode="json"))
+    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    examples = [
+        example.model_dump(mode="json") for example in benchmark.examples[:limit]
+    ]
     typer.echo(
         json.dumps(
             {
-                "task": spec.model_dump(mode="json"),
+                "benchmark": benchmark.spec.model_dump(mode="json"),
+                "tasks": [task.metadata.model_dump(mode="json") for task in benchmark.tasks],
                 "prompt_sha256": prompt_sha256(),
                 "sample": examples,
             },
@@ -70,8 +69,8 @@ def run_openrouter(
     """Run a resumable OpenRouter evaluation and preserve complete raw I/O."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    spec = load_task_spec(spec_path)
-    examples = list(load_examples(spec.dataset, project_root=resolved_root))
+    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    examples = list(benchmark.examples)
     if smoke:
         examples = select_smoke_examples(examples)
     summary = run_openrouter_evaluation(
@@ -82,6 +81,7 @@ def run_openrouter(
         reasoning_family_effort=reasoning_family_effort,
         seed=seed,
         concurrency=concurrency,
+        benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))
 
@@ -100,8 +100,8 @@ def run_openrouter_top_logprobs(
     """Run eligible rows using native OpenRouter output-token logprobs."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    spec = load_task_spec(spec_path)
-    all_examples = list(load_examples(spec.dataset, project_root=resolved_root))
+    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    all_examples = list(benchmark.examples)
     examples = [example for example in all_examples if len(example.candidates) <= top_logprobs]
     if smoke:
         examples = select_smoke_examples(examples)
@@ -113,6 +113,7 @@ def run_openrouter_top_logprobs(
         concurrency=concurrency,
         top_logprobs=top_logprobs,
         benchmark_rows=len(all_examples),
+        benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))
 
@@ -210,8 +211,8 @@ def run_hf(
     """Run a local Hugging Face decision-token checkpoint."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    spec = load_task_spec(spec_path)
-    examples = list(load_examples(spec.dataset, project_root=resolved_root))
+    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    examples = list(benchmark.examples)
     if smoke:
         examples = select_smoke_examples(examples)
     summary = run_hf_evaluation(
@@ -223,14 +224,7 @@ def run_hf(
         max_prompt_characters_per_batch=max_prompt_characters_per_batch,
         max_length=max_length,
         attn_implementation=attn_implementation,
-        benchmark_metadata=_benchmark_metadata(
-            spec_path,
-            dataset_path=(
-                resolve_local_path(spec.dataset.path, project_root=resolved_root)
-                if spec.dataset.backend == "local" and spec.dataset.path is not None
-                else None
-            ),
-        ),
+        benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))
 
@@ -256,8 +250,8 @@ def run_nimble_hf(
     """Run Bespoke-Nimble-9B through its pinned native candidate-logit contract."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    spec = load_task_spec(spec_path)
-    examples = list(load_examples(spec.dataset, project_root=resolved_root))
+    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    examples = list(benchmark.examples)
     if smoke:
         examples = select_smoke_examples(examples)
     summary = run_nimble_hf_evaluation(
@@ -270,14 +264,7 @@ def run_nimble_hf(
         batch_size=batch_size,
         max_prompt_characters_per_batch=max_prompt_characters_per_batch,
         attn_implementation=attn_implementation,
-        benchmark_metadata=_benchmark_metadata(
-            spec_path,
-            dataset_path=(
-                resolve_local_path(spec.dataset.path, project_root=resolved_root)
-                if spec.dataset.backend == "local" and spec.dataset.path is not None
-                else None
-            ),
-        ),
+        benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))
 
@@ -303,8 +290,8 @@ def run_public_hf(
     """Run a public Jev-shaped HF model through its published native contract."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    spec = load_task_spec(spec_path)
-    examples = list(load_examples(spec.dataset, project_root=resolved_root))
+    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    examples = list(benchmark.examples)
     if smoke:
         examples = select_smoke_examples(examples)
     summary = run_public_hf_evaluation(
@@ -319,14 +306,7 @@ def run_public_hf(
         batch_size=batch_size,
         max_prompt_characters_per_batch=max_prompt_characters_per_batch,
         attn_implementation=attn_implementation,
-        benchmark_metadata=_benchmark_metadata(
-            spec_path,
-            dataset_path=(
-                resolve_local_path(spec.dataset.path, project_root=resolved_root)
-                if spec.dataset.backend == "local" and spec.dataset.path is not None
-                else None
-            ),
-        ),
+        benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))
 
@@ -349,8 +329,8 @@ def run_jev_openrouter(
     """Run Jev through OpenRouter's native Decisions endpoint."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    spec = load_task_spec(spec_path)
-    examples = list(load_examples(spec.dataset, project_root=resolved_root))
+    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    examples = list(benchmark.examples)
     if smoke:
         examples = select_smoke_examples(examples)
     summary = run_jev_openrouter_evaluation(
@@ -362,6 +342,7 @@ def run_jev_openrouter(
         input_token_reserve=input_token_reserve,
         tokenizer_model=tokenizer_model,
         tokenizer_revision=tokenizer_revision,
+        benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))
 
@@ -392,9 +373,22 @@ def serve_gguf(
     uvicorn.run(create_app(engine), host=host, port=port)
 
 
-def _benchmark_metadata(spec_path: Path, *, dataset_path: Path | None) -> dict[str, str]:
-    metadata = {"task_spec_sha256": _sha256_file(spec_path)}
-    if dataset_path is not None:
+def _benchmark_metadata(benchmark: Benchmark) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "benchmark_name": benchmark.spec.name,
+        "benchmark_version": benchmark.spec.version,
+        "benchmark_tasks": [task.metadata.name for task in benchmark.tasks],
+        "datasets": [dataset.model_dump(mode="json") for dataset in benchmark.datasets],
+    }
+    if benchmark.spec_path is not None:
+        metadata["task_spec_sha256"] = _sha256_file(benchmark.spec_path)
+
+    local_datasets = [dataset for dataset in benchmark.datasets if dataset.backend == "local"]
+    if len(local_datasets) == 1:
+        dataset_path = resolve_local_path(
+            local_datasets[0].path,
+            project_root=benchmark.project_root,
+        )
         metadata["dataset_sha256"] = _sha256_file(dataset_path)
         manifest_path = dataset_path.parent / "manifest.json"
         if manifest_path.is_file():

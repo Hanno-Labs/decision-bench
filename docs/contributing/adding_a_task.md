@@ -1,10 +1,9 @@
 # Add a Task
 
-A task is one dataset-backed evaluation unit using an existing DecisionBench
-output primitive. Task discovery, transformation, import, generation, and
-artifact validation live in
-[`Hanno-Labs/decision-bench-data-gen`](https://github.com/Hanno-Labs/decision-bench-data-gen),
-not in this runtime repository.
+A task is one independently versioned, dataset-backed evaluation unit using an existing
+DecisionBench output primitive. Like MTEB, each task owns its dataset reference, immutable revision,
+metadata, and any transform needed to produce the common evaluation schema. A task does not have to
+be copied into the Hanno Labs dataset.
 
 Every task must define a primitive, family, domain, provenance, commercial-compatible license,
 candidate semantics, gold candidate, and gold probability distribution. Generation and evaluation
@@ -16,28 +15,43 @@ silently rewritten.
 1. Check the [task catalog](../overview/tasks.md) and open issues for overlap.
 2. Choose an existing primitive: `binary_classification`, `candidate_selection`,
    or `ordinal_scoring`.
-3. Add a pinned public source, reproducible importer or transform, task metadata,
-   and tests to `decision-bench-data-gen`. You do **not** need to create a separate
-   Hugging Face repository.
-4. Normalize the source into `DecisionExample` rows and run:
+3. Publish the task's data in a public Hugging Face dataset repository and pin a commit SHA. The
+   source may already use the DecisionBench schema or may need a deterministic transform.
+4. Add a registered `DecisionTask` with its pinned dataset and metadata:
 
-   ```bash
-   decision-bench-data-gen validate-task task.toml datasets/my-task/eval.parquet
+   ```python
+   from decision_bench import DatasetSpec, DecisionTask, TaskMetadata, register_task
+   from decision_bench.schemas import Primitive
+
+   @register_task
+   class MyTask(DecisionTask):
+       metadata = TaskMetadata(
+           name="MyTask",
+           description="What the task measures.",
+           dataset=DatasetSpec(path="org/my-task", revision="<commit-sha>", split="test"),
+           license="Apache-2.0",
+           languages=("eng-Latn",),
+           primitive=Primitive.CANDIDATE_SELECTION,
+           family="routing_triage",
+           domain="biopharma",
+       )
    ```
 
-5. Open one data-generation pull request with the validator report, license and
-   provenance evidence, split and leakage notes, and available reference baselines.
-6. After review, Hanno Labs publishes the normalized rows into the canonical
-   DecisionBench dataset.
+   Add the definition to `src/decision_bench/task_spec.py` so importing DecisionBench registers it.
+   The registry is the runtime task catalog; the benchmark specification below only names entries
+   from that catalog.
 
-The complete implementation checklist and metadata format are in the
-[data-generation contributor guide](https://github.com/Hanno-Labs/decision-bench-data-gen/blob/main/CONTRIBUTING.md).
+5. Override `dataset_transform()` only when source rows need conversion to `DecisionExample`.
+6. Open a DecisionBench pull request with task tests, license and provenance evidence, split and
+   leakage notes, and available reference baselines.
+
+The existing DecisionBench 1.0 tasks happen to share one consolidated dataset release. That is a
+property of that release, not a requirement for new contributions. If you need to build or publish a
+new dataset, the optional generation tooling lives in
+[`Hanno-Labs/decision-bench-data-gen`](https://github.com/Hanno-Labs/decision-bench-data-gen).
 
 ## Task versus benchmark
 
-Merging a task does not automatically alter a frozen benchmark or the headline
-leaderboard. Benchmark inclusion is a separate review that pins the new dataset
-revision and reference results. See [Add a Benchmark](adding_a_benchmark.md).
-
-A new primitive changes the model-output contract rather than adding a task. Open
-an issue here before implementing one.
+Merging a task does not automatically alter a frozen benchmark or the headline leaderboard.
+Benchmark inclusion is a separate review that composes registered task names and reference results.
+See [Add a Benchmark](adding_a_benchmark.md).

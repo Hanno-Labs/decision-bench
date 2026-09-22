@@ -55,6 +55,7 @@ def run_openrouter_evaluation(
     seed: int,
     concurrency: int,
     reasoning_family_effort: str | None = None,
+    benchmark_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate rows concurrently with append-only raw output and resumability."""
 
@@ -82,6 +83,7 @@ def run_openrouter_evaluation(
                 "prompt_version": PROMPT_VERSION,
                 "prompt_sha256": prompt_sha256(),
                 "prediction_normalization": "divide_positive_finite_values_by_sum",
+                **(benchmark_metadata or {}),
             },
         )
 
@@ -96,6 +98,7 @@ def run_jev_openrouter_evaluation(
     input_token_reserve: int = 2_048,
     tokenizer_model: str = "Qwen/Qwen3-0.6B",
     tokenizer_revision: str = "c1899de289a04d12100db370d81485cdf75e47ca",
+    benchmark_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate Jev through OpenRouter's native Decisions endpoint."""
 
@@ -116,6 +119,7 @@ def run_jev_openrouter_evaluation(
                 "native_contract_version": JEV_CONTRACT_VERSION,
                 "prediction_normalization": "native_probability_distribution",
                 **decision_model.metadata,
+                **(benchmark_metadata or {}),
             },
         )
 
@@ -129,6 +133,7 @@ def run_openrouter_top_logprobs_evaluation(
     concurrency: int,
     top_logprobs: int = 20,
     benchmark_rows: int | None = None,
+    benchmark_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate eligible rows from native one-token OpenRouter logprobs."""
 
@@ -157,6 +162,7 @@ def run_openrouter_top_logprobs_evaluation(
                 "eligibility_definition": (
                     f"candidate_count <= {top_logprobs}; complete candidate token coverage required"
                 ),
+                **(benchmark_metadata or {}),
             },
         )
 
