@@ -133,8 +133,8 @@ def stage_result(
     results_repo_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
     model_id: Annotated[str, typer.Option()],
     model_revision: Annotated[str, typer.Option()],
-    artifact_uri: Annotated[str, typer.Option()],
     dataset_revision: Annotated[str, typer.Option()],
+    artifact_uri: Annotated[str | None, typer.Option()] = None,
     adapter: Annotated[str, typer.Option()] = "decision-bench",
     probability_source: Annotated[str, typer.Option()] = "complete_candidate_distribution",
     model_url: Annotated[str | None, typer.Option()] = None,
@@ -145,7 +145,7 @@ def stage_result(
     task_spec_sha256: Annotated[str | None, typer.Option()] = None,
     create_pr: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    """Stage one content-addressed result record and optionally open a PR."""
+    """Stage one validated result record and optionally open a PR."""
 
     cache = ResultCache(results_repo_dir)
     result_path = cache.stage_result(

@@ -1,6 +1,6 @@
 # Installation
 
-Install directly from the private GitHub repository with pip:
+Install directly from GitHub with pip:
 
 ```bash
 pip install git+https://github.com/Hanno-Labs/decision-bench.git
@@ -12,14 +12,15 @@ Or add it to a uv project:
 uv add git+https://github.com/Hanno-Labs/decision-bench.git
 ```
 
-Native Hugging Face checkpoints require the `hf` extra; GGUF serving requires `gguf`; the local
+Hugging Face checkpoints require the `hf` extra; GGUF serving requires `gguf`; the local
 leaderboard requires `leaderboard`.
 
 ```bash
 uv add "decision-bench[hf,leaderboard] @ git+https://github.com/Hanno-Labs/decision-bench.git"
 ```
 
-Authenticate with Hugging Face before loading the private dataset:
+The benchmark dataset is public. Authenticate only when the model you are evaluating is gated or
+private:
 
 ```bash
 hf auth login

@@ -74,7 +74,7 @@ class DecisionBenchResult(BaseModel):
     expected_calibration_error: float | None = Field(default=None, ge=0.0, le=1.0)
     mean_latency_seconds: float | None = Field(default=None, ge=0.0)
     views: dict[str, ViewMetrics]
-    artifact: ArtifactReference
+    artifact: ArtifactReference | None = None
     submitted_at: datetime
 
     @model_validator(mode="after")
@@ -161,7 +161,7 @@ class ResultCache:
                     "unsupported_rows": result.unsupported_rows if view == "overall" else None,
                     "probability_source": result.model.probability_source,
                     "adapter": result.model.adapter,
-                    "artifact_uri": result.artifact.uri,
+                    "artifact_uri": result.artifact.uri if result.artifact else None,
                 }
             )
         return records
@@ -171,7 +171,7 @@ class ResultCache:
         run_dir: str | Path,
         *,
         model: ModelMetadata,
-        artifact_uri: str,
+        artifact_uri: str | None = None,
         dataset_revision: str,
         benchmark_name: str = "DecisionBench",
         benchmark_version: str = "1.0",
@@ -239,11 +239,15 @@ class ResultCache:
                 str(name): _view_metrics(metrics)
                 for name, metrics in _object(summary["metrics"]).items()
             },
-            artifact=ArtifactReference(
-                uri=artifact_uri,
-                manifest_sha256=_sha256_file(manifest_path),
-                summary_sha256=_sha256_file(summary_path),
-                raw_sha256=_sha256_file(raw_path),
+            artifact=(
+                ArtifactReference(
+                    uri=artifact_uri,
+                    manifest_sha256=_sha256_file(manifest_path),
+                    summary_sha256=_sha256_file(summary_path),
+                    raw_sha256=_sha256_file(raw_path),
+                )
+                if artifact_uri is not None
+                else None
             ),
             submitted_at=datetime.now(UTC),
         )
@@ -254,7 +258,10 @@ class ResultCache:
             json.dumps(model.model_dump(mode="json"), indent=2, sort_keys=True) + "\n"
         )
         result_path = model_dir / f"{_safe_name(benchmark_name)}.json"
-        result_path.write_text(record.model_dump_json(indent=2) + "\n")
+        payload = record.model_dump(mode="json")
+        if payload["artifact"] is None:
+            payload.pop("artifact")
+        result_path.write_text(json.dumps(payload, indent=2) + "\n")
         return result_path
 
     def submit_result(

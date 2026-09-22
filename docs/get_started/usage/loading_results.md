@@ -19,5 +19,6 @@ cache.sync()
 results = cache.load_results()
 ```
 
-Result records contain reviewable aggregates and immutable pointers to complete row-level artifacts;
-the multi-hundred-megabyte raw responses remain in durable object storage rather than Git.
+Result records contain reviewable aggregates and may include immutable pointers to complete
+row-level artifacts. When attached, large raw responses remain in durable object storage rather
+than Git.

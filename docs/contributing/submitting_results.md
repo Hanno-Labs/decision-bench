@@ -1,16 +1,53 @@
 # Submit Results
 
-Evaluate against a pinned benchmark release and preserve the complete `raw.jsonl`, `summary.json`,
-and `manifest.json` in durable storage. Then stage a small reviewed record in a checkout of the
-official results repository:
+Evaluate an immutable model revision against a pinned benchmark release. The completed local run
+must contain `raw.jsonl`, `summary.json`, and `manifest.json`. You do not need to create a Hugging
+Face artifact repository to submit a result.
+
+## Stage the result record
+
+Fork and clone the official results repository:
+
+```bash
+cd ..
+gh repo fork Hanno-Labs/decision-bench-results --clone
+cd decision-bench
+```
+
+Then stage the reviewed record from the DecisionBench checkout. `stage-result` verifies the local
+manifest, raw-row accounting, metric arithmetic, and immutable identities before it writes the
+compact result. Declare the adapter and probability source explicitly; use the exact values written
+by the run rather than the generic CLI defaults:
 
 ```bash
 decision-bench stage-result results/my-model ../decision-bench-results \
   --model-id org/model --model-revision COMMIT_SHA \
-  --artifact-uri hf://buckets/ORG/BUCKET/path/to/run \
-  --dataset-revision b7c8107e01ecb1aee7c7eaf5caee4a3ba9f59443
+  --dataset-revision b7c8107e01ecb1aee7c7eaf5caee4a3ba9f59443 \
+  --adapter ADAPTER_ID \
+  --probability-source PROBABILITY_SOURCE \
+  --create-pr
 ```
 
-Add `--create-pr` to commit the record, push a branch, and open a pull request using the GitHub CLI.
-Results CI validates schema, directory identity, revisions, hashes, duplicate records, and metric
-arithmetic. Pull requests receive an automatic score/coverage comparison.
+`--create-pr` commits the generated record, pushes a branch to your fork, and opens a pull request
+against `Hanno-Labs/decision-bench-results` using the GitHub CLI. Omit it if you prefer to inspect,
+commit, and submit the generated files manually.
+
+## Optional raw evidence
+
+You may publish the complete run artifact and add its immutable URL with `--artifact-uri`. This is
+useful for official runs, unusual adapters, and submissions where reviewers ask for additional
+evidence. It is optional and is not a prerequisite for a result pull request. Do not publish private
+inputs or provider responses without permission.
+
+Before submission, run the results repository's local checks:
+
+```bash
+cd ../decision-bench-results
+uv sync --locked --group dev
+make check
+```
+
+Results CI validates schema, directory identity, revisions, duplicate records, and metric arithmetic.
+The pull request also receives an automatic comparison with the pinned Jev and Luna reference
+results. Maintainers review that report and may request additional evidence or rerun a suspicious
+submission. The comparison is a review aid, not a score threshold.
