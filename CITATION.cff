@@ -6,7 +6,7 @@ authors:
   - family-names: Solka
     given-names: Stephen
 repository-code: "https://github.com/Hanno-Labs/decision-bench"
-url: "https://ubiquitous-bassoon-zzmjggp.pages.github.io/"
+url: "https://hanno-labs.github.io/decision-bench/"
 license: Apache-2.0
 version: 0.1.0
 date-released: 2026-09-21

@@ -1,6 +1,6 @@
 site_name: DecisionBench
 site_description: The evaluation ecosystem for decision models
-site_url: https://ubiquitous-bassoon-zzmjggp.pages.github.io/
+site_url: https://hanno-labs.github.io/decision-bench/
 docs_dir: docs/
 repo_url: https://github.com/Hanno-Labs/decision-bench
 edit_uri: blob/main/docs/
