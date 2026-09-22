@@ -22,7 +22,7 @@ from decision_bench.evaluate import (
     select_smoke_examples,
 )
 from decision_bench.prompt import prompt_sha256
-from decision_bench.results import ModelMetadata, ResultCache
+from decision_bench.results import ModelMetadata, ModelType, ResultCache
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -135,6 +135,7 @@ def stage_result(
     model_id: Annotated[str, typer.Option()],
     model_revision: Annotated[str, typer.Option()],
     dataset_revision: Annotated[str, typer.Option()],
+    model_type: Annotated[ModelType, typer.Option()],
     artifact_uri: Annotated[str | None, typer.Option()] = None,
     adapter: Annotated[str, typer.Option()] = "decision-bench",
     probability_source: Annotated[str, typer.Option()] = "complete_candidate_distribution",
@@ -154,6 +155,7 @@ def stage_result(
         model=ModelMetadata(
             name=model_id,
             revision=model_revision,
+            model_type=model_type,
             url=model_url,
             adapter=adapter,
             probability_source=probability_source,
