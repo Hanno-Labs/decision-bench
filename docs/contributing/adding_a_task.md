@@ -38,6 +38,3 @@ The complete implementation checklist and metadata format are in the
 Merging a task does not automatically alter a frozen benchmark or the headline
 leaderboard. Benchmark inclusion is a separate review that pins the new dataset
 revision and reference results. See [Add a Benchmark](adding_a_benchmark.md).
-
-A new primitive changes the model-output contract rather than adding a task. Open
-an issue here before implementing one.

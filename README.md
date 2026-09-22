@@ -74,6 +74,33 @@ decision-bench run-openrouter task_specs/decisionbench-dev.toml results/luna \
 [Evaluation]: https://ubiquitous-bassoon-zzmjggp.pages.github.io/get_started/usage/running_the_evaluation/
 [Contributing]: https://ubiquitous-bassoon-zzmjggp.pages.github.io/contributing/
 
+## Contribute
+
+Choose the path that matches what you want to bring to DecisionBench:
+
+<table>
+  <tr>
+    <td width="50%">
+      <h3 align="center"><a href="docs/contributing/adding_a_model.md">🤖 Add a Model →</a></h3>
+      <p>Add a compatibility adapter so DecisionBench can evaluate a new decision model.</p>
+    </td>
+    <td width="50%">
+      <h3 align="center"><a href="docs/contributing/submitting_results.md">📊 Submit Results →</a></h3>
+      <p>Run a supported model and submit its reviewed, reproducible scores.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3 align="center"><a href="docs/contributing/adding_a_task.md">🧩 Add a Task →</a></h3>
+      <p>Contribute one dataset-backed decision problem with labels, provenance, and tests.</p>
+    </td>
+    <td width="50%">
+      <h3 align="center"><a href="docs/contributing/adding_a_benchmark.md">🗂️ Add a Benchmark →</a></h3>
+      <p>Curate existing tasks into a named evaluation for a domain or purpose.</p>
+    </td>
+  </tr>
+</table>
+
 ## Citing
 
 DecisionBench is under active development. Until the benchmark paper is published, cite the
