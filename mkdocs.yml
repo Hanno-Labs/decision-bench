@@ -89,6 +89,6 @@ plugins:
             show_root_heading: true
             show_source: true
 
-copyright: DecisionBench is available under Apache-2.0.
+copyright: Copyright © 2026 Clause Logic Inc. · Licensed under Apache-2.0.
 validation:
   invalid_links: false
