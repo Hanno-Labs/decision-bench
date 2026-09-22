@@ -7,7 +7,7 @@ decision-bench              runtime, task metadata, adapters, docs, leaderboard 
 decision-bench-results      reviewed compact result records and validation CI
 Hugging Face results data   generated Parquet mirror for fast queries
 HF Space leaderboard        interactive browser over reviewed records
-HF bucket artifacts         complete row-level inputs, outputs, scores, errors, and hashes
+HF artifact repos/buckets   complete row-level inputs, outputs, scores, errors, and hashes
 ```
 
 The Git result record is reviewable and small. It cannot replace the durable raw artifact, and the

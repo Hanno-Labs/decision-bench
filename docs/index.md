@@ -15,6 +15,5 @@ raw artifact contracts, reviewed result records, and an interactive leaderboard.
 4. [Load or submit results](get_started/usage/loading_results.md).
 5. [Explore the leaderboard](get_started/usage/leaderboard.md).
 
-The dataset is currently private while the benchmark is being prepared for release. Approved
-collaborators need access to
+The canonical dataset is published at
 [`Hanno-Labs/decision-bench`](https://huggingface.co/datasets/Hanno-Labs/decision-bench).
