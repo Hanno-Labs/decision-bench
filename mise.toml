@@ -1,0 +1,36 @@
+experimental_monorepo_root = true
+
+[monorepo]
+config_roots = ["repos/*"]
+
+[tasks.clone]
+description = "Clone missing DecisionBench companion repositories into repos/"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p repos
+
+repos=(
+  git@github.com:Hanno-Labs/decision-bench-data-gen.git
+  git@github.com:Hanno-Labs/decision-bench-results.git
+  git@github.com:Hanno-Labs/decision-bench-leaderboard.git
+)
+
+for url in "${repos[@]}"; do
+  name="$(basename "$url" .git)"
+  if [ -d "repos/$name/.git" ] || [ -f "repos/$name/.git" ]; then
+    echo "$name already exists, skipping"
+  elif [ -e "repos/$name" ]; then
+    echo "repos/$name exists but is not a Git checkout" >&2
+    exit 1
+  else
+    echo "Cloning $name..."
+    git clone "$url" "repos/$name"
+  fi
+done
+"""
+
+[tasks.setup]
+description = "Set up local DecisionBench companion repositories"
+depends = ["clone"]

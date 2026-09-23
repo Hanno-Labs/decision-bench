@@ -10,3 +10,6 @@ results/
 # Development datasets are deliberately external to the source tree history.
 datasets/**
 !datasets/README.md
+
+# Companion repositories managed by mise
+/repos/
