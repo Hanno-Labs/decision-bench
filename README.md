@@ -14,6 +14,7 @@
   <a href="https://hanno-labs.github.io/decision-bench/">Documentation</a> ·
   <a href="https://huggingface.co/spaces/Hanno-Labs/decision-bench-leaderboard">Leaderboard</a> ·
   <a href="https://github.com/Hanno-Labs/decision-bench-results">Results</a> ·
+  <a href="https://github.com/Hanno-Labs/decision-bench/issues">Issues</a> ·
   <a href="#citing">Citing</a>
 </h4>
 
@@ -68,6 +69,10 @@ decision readout is not already supported.
 [Contributing]: https://hanno-labs.github.io/decision-bench/contributing/
 
 ## Contribute
+
+Report bugs and request features for any DecisionBench component in the
+[central issue tracker](https://github.com/Hanno-Labs/decision-bench/issues).
+Send code changes to the repository that owns that component.
 
 Choose the path that matches what you want to bring to DecisionBench:
 
