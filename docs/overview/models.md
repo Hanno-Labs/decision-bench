@@ -23,6 +23,7 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 |---|---|---|
 | `run-hf` | [`Hanno-Labs/bosun-v3.1-0.6b`](https://huggingface.co/Hanno-Labs/bosun-v3.1-0.6b), [`Hanno-Labs/bosun-v3.1-1.7b`](https://huggingface.co/Hanno-Labs/bosun-v3.1-1.7b) | Masked softmax over valid decision tokens |
 | `run-nimble-hf` | [`bespokelabs/Bespoke-Nimble-9B`](https://huggingface.co/bespokelabs/Bespoke-Nimble-9B) | Published candidate-token logits; up to 26 choices |
+| `run-public-hf --model-type cua-s1` | [`cua-ai/cua-s1-4b-0.2`](https://huggingface.co/cua-ai/cua-s1-4b-0.2) text adapter | Published final-position option-letter logits; up to 26 candidates |
 | `run-public-hf --model-type nanojev` | [`C-Tianyu/NanoJev`](https://huggingface.co/C-Tianyu/NanoJev) | Published parallel candidate-path head |
 | `run-public-hf --model-type openjev` | [`com-kotobalabs/open-jev-deberta-v3-large`](https://huggingface.co/com-kotobalabs/open-jev-deberta-v3-large) | Published grouped-span head |
 | `run-public-hf --model-type system-one` | [`pngwn/system-one-qwen3.5-4b-scorer`](https://huggingface.co/pngwn/system-one-qwen3.5-4b-scorer) | Published candidate scorer |
@@ -30,7 +31,13 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 | `run-openrouter` | An OpenRouter chat model that can produce the required JSON-schema probability vector | Structured probability vector |
 | `run-openrouter-top-logprobs` | An OpenRouter chat model that returns every required candidate in top-logprobs | Conditional next-token probabilities |
 
-The first five rows run pinned local Hugging Face weights. The OpenRouter rows are hosted service
+The first six rows run pinned local Hugging Face weights. The OpenRouter rows are hosted service
 surfaces: record the provider model name, request settings, and dated service snapshot when you
 submit results. `decision-bench --help` documents all runners; use the runner's `--help` for its
 required paths and model-specific options.
+
+The registered Cua-S1 release is adapter revision
+`16818868b0cc7813808aae4e87b417657046ab79` on base revision
+`851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`; its text adapter SHA-256 is
+`9b59c5aed96171a50b26526613766bbf44347a5c7af70f81efe6bcc6e9dbfb0e`. DecisionBench's frozen
+rows contain textual state rather than screenshots, so this runner uses the release's text adapter.
