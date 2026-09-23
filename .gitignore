@@ -13,3 +13,6 @@ datasets/**
 
 # Companion repositories managed by mise
 /repos/
+
+# Machine-specific repository additions
+/mise.local.toml
