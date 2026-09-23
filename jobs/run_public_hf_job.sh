@@ -9,6 +9,44 @@ set -eu
 : "${MAX_PROMPT_CHARACTERS_PER_BATCH:?MAX_PROMPT_CHARACTERS_PER_BATCH is required}"
 
 source_dir=${SOURCE_DIR:-/source}
+sync_pid=
+
+sync_results() {
+  if [ -n "${RESULTS_URI:-}" ] && [ -d "$OUTPUT_DIR" ]; then
+    hf sync "$OUTPUT_DIR" "$RESULTS_URI"
+  fi
+}
+
+cleanup() {
+  run_status=$?
+  trap - EXIT INT TERM
+  set +e
+  if [ -n "$sync_pid" ]; then
+    kill "$sync_pid" 2>/dev/null
+    wait "$sync_pid" 2>/dev/null
+  fi
+  sync_results
+  sync_status=$?
+  if [ "$run_status" -eq 0 ] && [ "$sync_status" -ne 0 ]; then
+    run_status=$sync_status
+  fi
+  exit "$run_status"
+}
+
+if [ -n "${RESULTS_URI:-}" ]; then
+  mkdir -p "$OUTPUT_DIR"
+  hf sync "$RESULTS_URI" "$OUTPUT_DIR" || true
+  (
+    while sleep "${RESULTS_SYNC_INTERVAL_SECONDS:-300}"; do
+      sync_results
+    done
+  ) &
+  sync_pid=$!
+  trap cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+fi
+
 if [ -n "${DATASET_DIR:-}" ]; then
   runtime_source=/tmp/decision-bench-source
   rm -rf "$runtime_source"
@@ -52,4 +90,4 @@ if [ "${SMOKE:-0}" = "1" ]; then
   set -- "$@" --smoke
 fi
 
-exec "$@"
+"$@"

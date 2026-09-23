@@ -55,7 +55,7 @@ def main() -> None:
     parser.add_argument("--model-dir", type=Path, required=True)
     parser.add_argument(
         "--model-type",
-        choices=("bosun", "nimble", "nanojev", "openjev", "system-one"),
+        choices=("bosun", "cua-s1", "nimble", "nanojev", "openjev", "system-one"),
         default="bosun",
     )
     parser.add_argument("--model-repo")
@@ -76,7 +76,7 @@ def main() -> None:
         "run-nimble-hf"
         if args.model_type == "nimble"
         else "run-public-hf"
-        if args.model_type in {"nanojev", "openjev", "system-one"}
+        if args.model_type in {"cua-s1", "nanojev", "openjev", "system-one"}
         else "run-hf"
     )
     command = [
@@ -94,7 +94,7 @@ def main() -> None:
         "--max-prompt-characters-per-batch",
         str(args.max_prompt_characters_per_batch),
     ]
-    if args.model_type in {"nanojev", "openjev", "system-one"}:
+    if args.model_type in {"cua-s1", "nanojev", "openjev", "system-one"}:
         if not args.model_repo or not args.model_revision:
             raise ValueError("public HF models require --model-repo and --model-revision")
         command.extend(
@@ -137,7 +137,7 @@ def main() -> None:
         raise RuntimeError("full DecisionBench runs require --expected-rows")
     if args.smoke and requested_rows <= 0:
         raise RuntimeError("DecisionBench smoke selected no rows")
-    if args.model_type in {"nimble", "nanojev", "openjev", "system-one"}:
+    if args.model_type in {"cua-s1", "nimble", "nanojev", "openjev", "system-one"}:
         if summary["successful_rows"] + summary["error_rows"] != requested_rows:
             raise RuntimeError("DecisionBench recorded-row gate failed")
         if (

@@ -1,10 +1,11 @@
-"""Native adapters for public Jev-shaped Hugging Face decision models."""
+"""Native adapters for public Hugging Face decision models."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import math
+import string
 import sys
 import time
 from collections.abc import Sequence
@@ -23,6 +24,9 @@ from decision_bench.schemas import DecisionExample, DecisionPrediction, Primitiv
 NANOJEV_MAX_LENGTH = 512
 OPENJEV_MAX_LENGTH = 512
 SYSTEM_ONE_MAX_LENGTH = 384
+CUA_S1_BASE_MODEL = "Qwen/Qwen3.5-4B"
+CUA_S1_MAX_OPTIONS = len(string.ascii_uppercase)
+CUA_S1_PROMPT_VERSION = "cua-s1-four-b-text-v1"
 
 
 def _state_text(example: DecisionExample) -> str:
@@ -575,6 +579,238 @@ class OpenJevHFDecisionModel:
             "instructions": example.instruction,
             "options": options,
         }, [candidate.id for candidate in example.candidates]
+
+
+class CuaS1HFDecisionModel:
+    """Run Cua-S1-4B through its published option-letter logit readout."""
+
+    def __init__(
+        self,
+        *,
+        model_dir: Path,
+        model_repo: str,
+        model_revision: str,
+        base_revision: str,
+        expected_weights_sha256: str,
+        attn_implementation: str = "sdpa",
+    ) -> None:
+        try:
+            import torch
+            from peft import PeftModel
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+        except ImportError as error:
+            raise RuntimeError(
+                "Cua-S1 support requires the decision-bench[hf] extra"
+            ) from error
+        if not torch.cuda.is_available() or not torch.cuda.is_bf16_supported():
+            raise RuntimeError("Cua-S1 evaluation requires a BF16-capable CUDA GPU")
+
+        adapter_dir = model_dir / "text"
+        adapter_path = adapter_dir / "adapter_model.safetensors"
+        adapter_config_path = adapter_dir / "adapter_config.json"
+        actual_weights_sha256 = _sha256_file(adapter_path)
+        if actual_weights_sha256 != expected_weights_sha256:
+            raise RuntimeError("Cua-S1 text adapter does not match the pinned release")
+        adapter_config = _read_json(adapter_config_path)
+        if adapter_config.get("base_model_name_or_path") != CUA_S1_BASE_MODEL:
+            raise RuntimeError("unexpected Cua-S1 base model")
+
+        self.model_dir = model_dir
+        self.model_repo = model_repo
+        self.model_revision = model_revision
+        self.base_revision = base_revision
+        self.attn_implementation = attn_implementation
+        self._torch = torch
+        self._adapter_dir = adapter_dir
+        self._weights_sha256 = actual_weights_sha256
+        self.tokenizer = cast(
+            Any,
+            AutoTokenizer.from_pretrained(
+                CUA_S1_BASE_MODEL,
+                revision=base_revision,
+            ),
+        )
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.tokenizer.padding_side = "left"
+        base_model = AutoModelForCausalLM.from_pretrained(
+            CUA_S1_BASE_MODEL,
+            revision=base_revision,
+            dtype=torch.bfloat16,
+            attn_implementation=attn_implementation,
+        )
+        text_config = base_model.config.get_text_config()
+        self.max_input_tokens = int(text_config.max_position_embeddings)
+        self.model = (
+            PeftModel.from_pretrained(base_model, adapter_dir).to("cuda").eval()
+        )
+        self._letter_token_ids = self._resolve_letter_token_ids()
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        return {
+            "model_type": "cua_s1_4b_option_letter_logits",
+            "model": self.model_repo,
+            "model_revision": self.model_revision,
+            "adapter_variant": "text",
+            "adapter_sha256": self._weights_sha256,
+            "adapter_config_sha256": _sha256_file(
+                self._adapter_dir / "adapter_config.json"
+            ),
+            "base_model": CUA_S1_BASE_MODEL,
+            "base_revision": self.base_revision,
+            "max_input_tokens": self.max_input_tokens,
+            "max_candidates": CUA_S1_MAX_OPTIONS,
+            "temperature": 1.0,
+            "probability_source": "native_option_letter_logits_fp32_softmax",
+            "prompt_version": CUA_S1_PROMPT_VERSION,
+            "attn_implementation": self.attn_implementation,
+            "input_truncation_policy": "reject_over_context_v1",
+        }
+
+    def prompt_characters(self, example: DecisionExample) -> int:
+        prepared = self._prepare(example)
+        return len(cast(str, prepared["rendered_prompt"]))
+
+    def validate_example(self, example: DecisionExample) -> None:
+        self._prepare(example)
+
+    def predict_batch(
+        self, examples: Sequence[DecisionExample]
+    ) -> list[HFDecisionResponse]:
+        if not examples:
+            return []
+        prepared = [self._prepare(example) for example in examples]
+        prompts = [cast(str, row["rendered_prompt"]) for row in prepared]
+        encoded = self.tokenizer(prompts, padding=True, return_tensors="pt").to("cuda")
+        started = time.monotonic()
+        with self._torch.inference_mode():
+            logits = self.model(**encoded).logits[:, -1, :].float().cpu()
+        elapsed = time.monotonic() - started
+
+        responses: list[HFDecisionResponse] = []
+        for index, row in enumerate(prepared):
+            example = cast(DecisionExample, row["example"])
+            output_candidate_ids = cast(list[str], row["output_candidate_ids"])
+            letters = cast(list[str], row["letters"])
+            letter_token_ids = cast(list[int], row["letter_token_ids"])
+            native_logits_tensor = logits[index, letter_token_ids].double()
+            native_probabilities = cast(
+                list[float], native_logits_tensor.softmax(-1).tolist()
+            )
+            probabilities = _align_probabilities(
+                example, output_candidate_ids, native_probabilities
+            )
+            token_ids = cast(list[int], row["token_ids"])
+            responses.append(
+                HFDecisionResponse(
+                    prediction=DecisionPrediction(probabilities=probabilities),
+                    request={
+                        "messages": row["messages"],
+                        "rendered_prompt": row["rendered_prompt"],
+                        "candidate_ids": output_candidate_ids,
+                        "letters": letters,
+                        "input_tokens": len(token_ids),
+                        "input_token_ids_sha256": _token_lists_sha256([token_ids]),
+                    },
+                    response={
+                        "native_candidate_ids": output_candidate_ids,
+                        "native_letters": letters,
+                        "native_letter_token_ids": letter_token_ids,
+                        "native_logits": cast(list[float], native_logits_tensor.tolist()),
+                        "native_probabilities": native_probabilities,
+                        "probabilities": probabilities,
+                    },
+                    latency_seconds=elapsed / len(prepared),
+                    input_contract={
+                        "policy_version": "reject_over_context_v1",
+                        "max_input_tokens": self.max_input_tokens,
+                        "original_input_tokens": len(token_ids),
+                        "final_input_tokens": len(token_ids),
+                        "truncated": False,
+                        "counted_surface": "cua_s1_published_text_prompt",
+                        "model_facing_example": example.model_dump(mode="json"),
+                    },
+                )
+            )
+        return responses
+
+    def _resolve_letter_token_ids(self) -> list[int]:
+        token_ids: list[int] = []
+        for letter in string.ascii_uppercase:
+            values = cast(
+                list[int],
+                self.tokenizer.encode(letter, add_special_tokens=False),
+            )
+            if len(values) != 1:
+                raise RuntimeError(
+                    f"Cua-S1 option letter {letter!r} is not one tokenizer token"
+                )
+            token_ids.append(values[0])
+        return token_ids
+
+    def _prepare(self, example: DecisionExample) -> dict[str, Any]:
+        candidate_count = len(example.candidates)
+        if candidate_count > CUA_S1_MAX_OPTIONS:
+            raise ValueError(
+                f"Cua-S1 supports at most {CUA_S1_MAX_OPTIONS} candidates"
+            )
+        letters = list(string.ascii_uppercase[:candidate_count])
+        option_lines = []
+        for letter, candidate in zip(letters, example.candidates, strict=True):
+            label = _candidate_text(candidate.label, candidate.description)
+            option_lines.append(
+                f'{letter}. {example.primitive.value} "{label}" -> select'
+            )
+        options_text = "\n".join(option_lines)
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a one-pass computer-use decision model. You are shown the "
+                    "current state of a screen and a fixed, closed list of candidate "
+                    "(element, action) options, each given a single letter. Choose exactly "
+                    "one option: the single best next action to take. Answer with ONLY that "
+                    "option's letter -- no words, no punctuation, no explanation."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Goal: {example.instruction}\n\n"
+                    f"App: {example.domain}\n"
+                    f"Task family: {example.family}\n\n"
+                    f"Accessibility tree:\n{_state_text(example)}\n\n"
+                    f"Options:\n{options_text}\n\n"
+                    "Answer with a single letter."
+                ),
+            },
+        ]
+        rendered_prompt = cast(
+            str,
+            self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            ),
+        )
+        token_ids = cast(list[int], self.tokenizer(rendered_prompt)["input_ids"])
+        if len(token_ids) > self.max_input_tokens:
+            raise ValueError(
+                "Cua-S1 prompt exceeds its context limit: "
+                f"{len(token_ids)} > {self.max_input_tokens}"
+            )
+        return {
+            "example": example,
+            "messages": messages,
+            "rendered_prompt": rendered_prompt,
+            "token_ids": token_ids,
+            "output_candidate_ids": [
+                candidate.id for candidate in example.candidates
+            ],
+            "letters": letters,
+            "letter_token_ids": self._letter_token_ids[:candidate_count],
+        }
 
 
 class SystemOneHFDecisionModel:

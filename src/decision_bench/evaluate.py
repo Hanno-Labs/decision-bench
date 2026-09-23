@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from decision_bench.models import (
+    CuaS1HFDecisionModel,
     HFDecisionModel,
     JevOpenRouterDecisionModel,
     NanoJevHFDecisionModel,
@@ -281,7 +282,7 @@ def run_public_hf_evaluation(
     output_dir: Path,
     *,
     model_dir: Path,
-    model_type: Literal["nanojev", "openjev", "system-one"],
+    model_type: Literal["cua-s1", "nanojev", "openjev", "system-one"],
     model_repo: str,
     model_revision: str,
     base_revision: str | None,
@@ -291,12 +292,28 @@ def run_public_hf_evaluation(
     attn_implementation: str,
     benchmark_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Evaluate a public Jev-shaped model with its published native contract."""
+    """Evaluate a public HF decision model with its published native contract."""
 
     decision_model: (
-        NanoJevHFDecisionModel | OpenJevHFDecisionModel | SystemOneHFDecisionModel
+        CuaS1HFDecisionModel
+        | NanoJevHFDecisionModel
+        | OpenJevHFDecisionModel
+        | SystemOneHFDecisionModel
     )
-    if model_type == "nanojev":
+    if model_type == "cua-s1":
+        if base_revision is None or expected_weights_sha256 is None:
+            raise ValueError(
+                "Cua-S1 requires a pinned base revision and expected weights SHA-256"
+            )
+        decision_model = CuaS1HFDecisionModel(
+            model_dir=model_dir,
+            model_repo=model_repo,
+            model_revision=model_revision,
+            base_revision=base_revision,
+            expected_weights_sha256=expected_weights_sha256,
+            attn_implementation=attn_implementation,
+        )
+    elif model_type == "nanojev":
         if expected_weights_sha256 is None:
             raise ValueError("NanoJev requires an expected weights SHA-256")
         decision_model = NanoJevHFDecisionModel(
@@ -389,6 +406,7 @@ def _run_hf_batches(
     *,
     decision_model: (
         HFDecisionModel
+        | CuaS1HFDecisionModel
         | NimbleHFDecisionModel
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
@@ -448,6 +466,7 @@ def _hf_batches(
     *,
     decision_model: (
         HFDecisionModel
+        | CuaS1HFDecisionModel
         | NimbleHFDecisionModel
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel

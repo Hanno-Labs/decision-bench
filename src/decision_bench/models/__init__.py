@@ -6,12 +6,14 @@ from decision_bench.models.nimble_hf import NimbleHFDecisionModel
 from decision_bench.models.openrouter import OpenRouterDecisionModel, OpenRouterResponse
 from decision_bench.models.openrouter_top_logprobs import OpenRouterTopLogprobsDecisionModel
 from decision_bench.models.public_hf import (
+    CuaS1HFDecisionModel,
     NanoJevHFDecisionModel,
     OpenJevHFDecisionModel,
     SystemOneHFDecisionModel,
 )
 
 __all__ = [
+    "CuaS1HFDecisionModel",
     "HFDecisionModel",
     "HFDecisionResponse",
     "JevOpenRouterDecisionModel",

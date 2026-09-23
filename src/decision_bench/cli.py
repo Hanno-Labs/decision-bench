@@ -277,7 +277,7 @@ def run_public_hf(
     model_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
     output_dir: Annotated[Path, typer.Argument(file_okay=False)],
     model_type: Annotated[
-        Literal["nanojev", "openjev", "system-one"], typer.Option()
+        Literal["cua-s1", "nanojev", "openjev", "system-one"], typer.Option()
     ],
     model_repo: Annotated[str, typer.Option()],
     model_revision: Annotated[str, typer.Option()],
@@ -289,7 +289,7 @@ def run_public_hf(
     attn_implementation: Annotated[str, typer.Option()] = "sdpa",
     smoke: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    """Run a public Jev-shaped HF model through its published native contract."""
+    """Run a public HF decision model through its published native contract."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
     benchmark = get_benchmark(spec_path, project_root=resolved_root)
