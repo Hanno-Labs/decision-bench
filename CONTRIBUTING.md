@@ -3,6 +3,10 @@
 DecisionBench spans several repositories and Hugging Face resources. Start in the
 repository that owns the change:
 
+Report bugs and request features for any part of the ecosystem in the
+[DecisionBench issue tracker](https://github.com/Hanno-Labs/decision-bench/issues).
+Open code pull requests in the repository that owns the change.
+
 | Part | What belongs there | Local path after setup |
 | --- | --- | --- |
 | [DecisionBench](https://github.com/Hanno-Labs/decision-bench) | Benchmark runtime, model adapters, evaluation, scoring, task specs, and documentation | This checkout |
