@@ -19,6 +19,7 @@ from decision_bench.evaluate import (
     run_openrouter_evaluation,
     run_openrouter_top_logprobs_evaluation,
     run_public_hf_evaluation,
+    run_system_one_http_evaluation,
     select_smoke_examples,
 )
 from decision_bench.prompt import prompt_sha256
@@ -344,6 +345,57 @@ def run_jev_openrouter(
         input_token_reserve=input_token_reserve,
         tokenizer_model=tokenizer_model,
         tokenizer_revision=tokenizer_revision,
+        benchmark_metadata=_benchmark_metadata(benchmark),
+    )
+    typer.echo(json.dumps(summary, indent=2, sort_keys=True))
+
+
+@app.command("run-system-one-http")
+def run_system_one_http(
+    spec_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    output_dir: Annotated[Path, typer.Argument(file_okay=False)],
+    project_root: Annotated[Path | None, typer.Option()] = None,
+    base_url: Annotated[str, typer.Option()] = "http://127.0.0.1:30002",
+    model: Annotated[str, typer.Option()] = "xor",
+    model_repo: Annotated[str, typer.Option()] = "juspay/xor",
+    model_revision: Annotated[str, typer.Option()] = (
+        "679decd4c669e5c37f4ac29dbd9957997424c876"
+    ),
+    serving_bundle_sha256: Annotated[str, typer.Option()] = (
+        "0a63473caaa3c6bfc8bc15fbab62f0a9a84c7ebf4ab6e06d0699891b7be6159b"
+    ),
+    inference_image: Annotated[str, typer.Option()] = (
+        "lmsysorg/sglang@sha256:"
+        "6bcaa47db52f78ce0d67863b8b2431221b79bc23204a80cad757fa819d00e921"
+    ),
+    concurrency: Annotated[int, typer.Option(min=1, max=256)] = 32,
+    max_candidates: Annotated[int, typer.Option(min=2)] = 26,
+    max_rendered_state_characters: Annotated[int, typer.Option(min=1)] = (
+        4 * 1024 * 1024
+    ),
+    max_request_bytes: Annotated[int, typer.Option(min=1)] = 8 * 1024 * 1024,
+    smoke: Annotated[bool, typer.Option()] = False,
+) -> None:
+    """Run a pinned Jev-compatible SystemOne HTTP endpoint."""
+
+    resolved_root = project_root if project_root is not None else Path.cwd()
+    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    examples = list(benchmark.examples)
+    if smoke:
+        examples = select_smoke_examples(examples)
+    summary = run_system_one_http_evaluation(
+        examples,
+        output_dir,
+        base_url=base_url,
+        model=model,
+        model_repo=model_repo,
+        model_revision=model_revision,
+        serving_bundle_sha256=serving_bundle_sha256,
+        inference_image=inference_image,
+        concurrency=concurrency,
+        max_candidates=max_candidates,
+        max_rendered_state_characters=max_rendered_state_characters,
+        max_request_bytes=max_request_bytes,
         benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))

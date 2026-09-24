@@ -28,6 +28,7 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 | `run-public-hf --model-type openjev` | [`com-kotobalabs/open-jev-deberta-v3-large`](https://huggingface.co/com-kotobalabs/open-jev-deberta-v3-large) | Published grouped-span head |
 | `run-public-hf --model-type system-one` | [`pngwn/system-one-qwen3.5-4b-scorer`](https://huggingface.co/pngwn/system-one-qwen3.5-4b-scorer) | Published candidate scorer |
 | `run-jev-openrouter` | [`typesafe/jev-1.13`](https://openrouter.ai/typesafe/jev-1.13) | OpenRouter Decisions API distributions |
+| `run-system-one-http` | [`juspay/xor`](https://huggingface.co/juspay/xor) | Released Jev-compatible SystemOne API; forward/reverse option-letter logprobs with published calibration; up to 26 candidates |
 | `run-openrouter` | An OpenRouter chat model that can produce the required JSON-schema probability vector | Structured probability vector |
 | `run-openrouter-top-logprobs` | An OpenRouter chat model that returns every required candidate in top-logprobs | Conditional next-token probabilities |
 
@@ -41,3 +42,11 @@ The registered Cua-S1 release is adapter revision
 `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`; its text adapter SHA-256 is
 `9b59c5aed96171a50b26526613766bbf44347a5c7af70f81efe6bcc6e9dbfb0e`. DecisionBench's frozen
 rows contain textual state rather than screenshots, so this runner uses the release's text adapter.
+
+The XOR runner pins model revision `679decd4c669e5c37f4ac29dbd9957997424c876` and serving
+bundle SHA-256 `0a63473caaa3c6bfc8bc15fbab62f0a9a84c7ebf4ab6e06d0699891b7be6159b`.
+The released bundle pins SGLang image digest
+`sha256:6bcaa47db52f78ce0d67863b8b2431221b79bc23204a80cad757fa819d00e921`. The
+runner sends the benchmark's Noul, Choice, and Score requests to `/v1/systemone`. Rows with more
+than 26 candidates, rendered state over 4 MiB, or serialized requests over 8 MiB remain explicit
+unsupported rows; the adapter never truncates them.
