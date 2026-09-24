@@ -93,7 +93,11 @@ class MoJevHFDecisionModel:
         encoder_dtype = next(self.model.encoder.parameters()).dtype
         original_build_mask = self.model.build_mask
 
-        def build_mask_for_encoder(context_span, field_span, option_span):
+        def build_mask_for_encoder(
+            context_span: Any,
+            field_span: Any,
+            option_span: Any,
+        ) -> Any:
             mask = original_build_mask(context_span, field_span, option_span)
             mask = mask.to(dtype=encoder_dtype)
             return mask.masked_fill(
@@ -101,10 +105,13 @@ class MoJevHFDecisionModel:
             )
 
         self.model.build_mask = build_mask_for_encoder
-        self.processor = AutoProcessor.from_pretrained(
-            model_dir,
-            trust_remote_code=True,
-            local_files_only=True,
+        self.processor = cast(
+            Any,
+            AutoProcessor.from_pretrained(
+                model_dir,
+                trust_remote_code=True,
+                local_files_only=True,
+            ),
         )
         self.tokenizer = self.processor.tokenizer
         configured_context = int(self.model.config.context_tokens)
