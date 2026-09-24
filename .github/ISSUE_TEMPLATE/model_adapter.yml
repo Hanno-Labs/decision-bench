@@ -9,6 +9,13 @@ body:
       label: Model ID
     validations:
       required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Immutable model revision
+      description: Commit SHA or release revision for the model to evaluate.
+    validations:
+      required: true
   - type: textarea
     id: surface
     attributes:

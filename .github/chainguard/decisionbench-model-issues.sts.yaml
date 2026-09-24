@@ -1,0 +1,10 @@
+# GitHub Actions may exchange only this workflow's issue-event identity.
+issuer: https://token.actions.githubusercontent.com
+subject: repo:Hanno-Labs/decision-bench:ref:refs/heads/main
+claim_pattern:
+  event_name: issues
+  workflow_ref: Hanno-Labs/decision-bench/.github/workflows/model-issues.yml@refs/heads/main
+
+permissions:
+  contents: write
+  pull_requests: write
