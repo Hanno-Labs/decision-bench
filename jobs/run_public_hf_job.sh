@@ -9,6 +9,8 @@ set -eu
 : "${MAX_PROMPT_CHARACTERS_PER_BATCH:?MAX_PROMPT_CHARACTERS_PER_BATCH is required}"
 
 source_dir=${SOURCE_DIR:-/source}
+checkpoint_dir=${CHECKPOINT_DIR:-"$OUTPUT_DIR/checkpoints"}
+mkdir -p "$checkpoint_dir"
 sync_pid=
 
 sync_results() {
@@ -36,9 +38,14 @@ cleanup() {
 if [ -n "${RESULTS_URI:-}" ]; then
   mkdir -p "$OUTPUT_DIR"
   hf sync "$RESULTS_URI" "$OUTPUT_DIR" || true
+  if [ -f "$checkpoint_dir/raw.jsonl" ]; then
+    cp "$checkpoint_dir/raw.jsonl" "$OUTPUT_DIR/raw.jsonl"
+  fi
   (
-    while sleep "${RESULTS_SYNC_INTERVAL_SECONDS:-300}"; do
-      sync_results
+    while sleep "${RESULTS_SYNC_INTERVAL_SECONDS:-120}"; do
+      if ! sync_results; then
+        printf '%s\n' "DecisionBench checkpoint sync failed; it will retry." >&2
+      fi
     done
   ) &
   sync_pid=$!
@@ -61,13 +68,20 @@ uvx --from huggingface-hub==1.32.0 hf download \
   --revision "$MODEL_REVISION" \
   --local-dir /tmp/model
 
-set -- uv run "$source_dir/jobs/run_hf_eval.py" \
+if [ "$MODEL_TYPE" = "tev1" ]; then
+  set -- uv run --with torchvision==0.23.0 "$source_dir/jobs/run_hf_eval.py"
+else
+  set -- uv run "$source_dir/jobs/run_hf_eval.py"
+fi
+set -- "$@" \
   --source-dir "$source_dir" \
   --model-dir /tmp/model \
   --model-type "$MODEL_TYPE" \
   --model-repo "$MODEL_REPO" \
   --model-revision "$MODEL_REVISION" \
   --output-dir "$OUTPUT_DIR" \
+  --checkpoint-dir "$checkpoint_dir" \
+  --checkpoint-interval-seconds "${CHECKPOINT_INTERVAL_SECONDS:-120}" \
   --batch-size "$BATCH_SIZE" \
   --max-prompt-characters-per-batch "$MAX_PROMPT_CHARACTERS_PER_BATCH"
 

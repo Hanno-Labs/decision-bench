@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
+import tempfile
 import time
 from collections import defaultdict
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
@@ -23,6 +25,7 @@ from decision_bench.models import (
     OpenRouterTopLogprobsDecisionModel,
     SystemOneHFDecisionModel,
     SystemOneHTTPDecisionModel,
+    Tev1HFDecisionModel,
 )
 from decision_bench.models.jev_openrouter import JEV_CONTRACT_VERSION
 from decision_bench.prompt import (
@@ -381,7 +384,7 @@ def run_public_hf_evaluation(
     output_dir: Path,
     *,
     model_dir: Path,
-    model_type: Literal["cua-s1", "mojev", "nanojev", "openjev", "system-one"],
+    model_type: Literal["cua-s1", "mojev", "nanojev", "openjev", "system-one", "tev1"],
     model_repo: str,
     model_revision: str,
     base_revision: str | None,
@@ -389,9 +392,14 @@ def run_public_hf_evaluation(
     batch_size: int,
     max_prompt_characters_per_batch: int,
     attn_implementation: str,
+    checkpoint_dir: Path | None = None,
+    checkpoint_interval_seconds: int = 120,
     benchmark_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate a public HF decision model with its published native contract."""
+
+    if checkpoint_dir is not None and checkpoint_interval_seconds < 1:
+        raise ValueError("checkpoint_interval_seconds must be positive")
 
     decision_model: (
         CuaS1HFDecisionModel
@@ -399,6 +407,7 @@ def run_public_hf_evaluation(
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
         | SystemOneHFDecisionModel
+        | Tev1HFDecisionModel
     )
     if model_type == "cua-s1":
         if base_revision is None or expected_weights_sha256 is None:
@@ -435,7 +444,7 @@ def run_public_hf_evaluation(
             model_repo=model_repo,
             model_revision=model_revision,
         )
-    else:
+    elif model_type == "system-one":
         if base_revision is None:
             raise ValueError("System One requires a pinned base revision")
         decision_model = SystemOneHFDecisionModel(
@@ -443,6 +452,13 @@ def run_public_hf_evaluation(
             model_repo=model_repo,
             model_revision=model_revision,
             base_revision=base_revision,
+            attn_implementation=attn_implementation,
+        )
+    else:
+        decision_model = Tev1HFDecisionModel(
+            model_dir=model_dir,
+            model_repo=model_repo,
+            model_revision=model_revision,
             attn_implementation=attn_implementation,
         )
 
@@ -479,6 +495,10 @@ def run_public_hf_evaluation(
                 eligible.append(example)
         raw_handle.flush()
         os.fsync(raw_handle.fileno())
+    last_checkpoint_at = 0.0
+    if checkpoint_dir is not None:
+        _write_raw_checkpoint(raw_path, checkpoint_dir)
+        last_checkpoint_at = time.monotonic()
 
     summary = _run_hf_batches(
         eligible,
@@ -487,15 +507,27 @@ def run_public_hf_evaluation(
         batch_size=batch_size,
         max_prompt_characters_per_batch=max_prompt_characters_per_batch,
         metadata={**decision_model.metadata, **(benchmark_metadata or {})},
+        checkpoint_dir=checkpoint_dir,
+        checkpoint_interval_seconds=checkpoint_interval_seconds,
+        last_checkpoint_at=last_checkpoint_at,
     )
     successful_rows = int(summary["successful_rows"])
-    eligible_accuracy = float(summary["metrics"]["overall"]["accuracy"])
-    correct_rows = round(eligible_accuracy * successful_rows)
+    if successful_rows:
+        eligible_accuracy = float(summary["metrics"]["overall"]["accuracy"])
+        correct_rows = round(eligible_accuracy * successful_rows)
+    else:
+        correct_rows = 0
     summary.update(
         {
             "requested_rows": len(examples),
             "eligible_rows": successful_rows,
             "ineligible_rows": int(summary["error_rows"]),
+            "ineligible_definition": (
+                "candidate_count > 24 or the decision protocol could not fit within "
+                "2,047 input tokens"
+                if model_type == "tev1"
+                else "rows rejected by the model adapter's input contract"
+            ),
             "coverage": successful_rows / len(examples),
             "benchmark_accuracy_counting_unsupported_as_incorrect": correct_rows
             / len(examples),
@@ -518,10 +550,14 @@ def _run_hf_batches(
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
         | SystemOneHFDecisionModel
+        | Tev1HFDecisionModel
     ),
     batch_size: int,
     max_prompt_characters_per_batch: int,
     metadata: dict[str, Any],
+    checkpoint_dir: Path | None = None,
+    checkpoint_interval_seconds: int = 120,
+    last_checkpoint_at: float = 0.0,
 ) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_path = output_dir / "raw.jsonl"
@@ -546,6 +582,13 @@ def _run_hf_batches(
                 raw_handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
             raw_handle.flush()
             os.fsync(raw_handle.fileno())
+            now = time.monotonic()
+            if checkpoint_dir is not None and (
+                last_checkpoint_at == 0.0
+                or now - last_checkpoint_at >= checkpoint_interval_seconds
+            ):
+                _write_raw_checkpoint(raw_path, checkpoint_dir)
+                last_checkpoint_at = now
             completed_count += len(batch)
             elapsed = max(time.time() - started, 1e-9)
             print(
@@ -579,6 +622,7 @@ def _hf_batches(
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
         | SystemOneHFDecisionModel
+        | Tev1HFDecisionModel
     ),
     batch_size: int,
     max_prompt_characters_per_batch: int,
@@ -879,6 +923,31 @@ def _write_run_artifacts(output_dir: Path, summary: dict[str, Any]) -> None:
     (output_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     )
+
+
+def _write_raw_checkpoint(raw_path: Path, checkpoint_dir: Path) -> None:
+    """Atomically snapshot a complete, flushed JSONL prefix for remote sync."""
+
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    destination = checkpoint_dir / "raw.jsonl"
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            dir=checkpoint_dir,
+            delete=False,
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            with raw_path.open("rb") as source:
+                shutil.copyfileobj(source, temporary)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.replace(temporary_path, destination)
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
 
 
 def _completed_row_ids(raw_path: Path) -> set[str]:

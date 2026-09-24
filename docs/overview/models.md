@@ -28,6 +28,7 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 | `run-public-hf --model-type nanojev` | [`C-Tianyu/NanoJev`](https://huggingface.co/C-Tianyu/NanoJev) | Published parallel candidate-path head |
 | `run-public-hf --model-type openjev` | [`com-kotobalabs/open-jev-deberta-v3-large`](https://huggingface.co/com-kotobalabs/open-jev-deberta-v3-large) | Published grouped-span head |
 | `run-public-hf --model-type system-one` | [`pngwn/system-one-qwen3.5-4b-scorer`](https://huggingface.co/pngwn/system-one-qwen3.5-4b-scorer) | Published candidate scorer |
+| `run-public-hf --model-type tev1` | [`togethercomputer/Tev1-4B-experimental`](https://huggingface.co/togethercomputer/Tev1-4B-experimental) | Softmax over A–X next-token logits; up to 24 choices |
 | `run-jev-openrouter` | [`typesafe/jev-1.13`](https://openrouter.ai/typesafe/jev-1.13) | OpenRouter Decisions API distributions |
 | `run-system-one-http` | [`juspay/xor`](https://huggingface.co/juspay/xor) | Released Jev-compatible SystemOne API; forward/reverse option-letter logprobs with published calibration; up to 26 candidates |
 | `run-openrouter` | An OpenRouter chat model that can produce the required JSON-schema probability vector | Structured probability vector |

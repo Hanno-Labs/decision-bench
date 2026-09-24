@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from decision_bench.models.hf import render_hf_decision_prompt
 from decision_bench.models.nimble_hf import build_nimble_input
 from decision_bench.models.public_hf import (
     NanoJevHFDecisionModel,
     OpenJevHFDecisionModel,
     SystemOneHFDecisionModel,
+    Tev1HFDecisionModel,
+    UnsupportedCandidateCount,
+    UnsupportedInputLength,
 )
 from decision_bench.prompt import fit_example_to_token_budget
 from decision_bench.schemas import Candidate, DecisionExample, Primitive
@@ -30,6 +35,25 @@ def _example() -> DecisionExample:
         gold_candidate_id="card",
         gold_probabilities=[0.0, 1.0, 0.0],
     )
+
+
+class _Tev1TokenizerStub:
+    def apply_chat_template(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        tokenize: bool,
+        **_: object,
+    ) -> str | list[int]:
+        rendered = json.dumps(messages)
+        return list(range(len(rendered))) if tokenize else rendered
+
+
+def _tev1_model() -> Tev1HFDecisionModel:
+    model = Tev1HFDecisionModel.__new__(Tev1HFDecisionModel)
+    model.tokenizer = _Tev1TokenizerStub()
+    model._letter_token_ids = list(range(24))
+    return model
 
 
 def test_hf_prompt_uses_stable_slots_and_preserves_candidate_identity() -> None:
@@ -261,3 +285,70 @@ def test_system_one_input_uses_published_yes_no_order() -> None:
 
     assert options == ["yes", "no"]
     assert output_ids == ["true", "false"]
+
+
+def test_tev1_preserves_candidate_order_for_all_primitives() -> None:
+    choice = _example()
+    binary = choice.model_copy(
+        update={
+            "primitive": Primitive.BINARY_CLASSIFICATION,
+            "candidates": [
+                Candidate(id="true", label="Yes"),
+                Candidate(id="false", label="No"),
+            ],
+            "gold_candidate_id": "true",
+            "gold_probabilities": [1.0, 0.0],
+        }
+    )
+    ordinal = choice.model_copy(
+        update={
+            "primitive": Primitive.ORDINAL_SCORING,
+            "candidates": [
+                candidate.model_copy(update={"ordinal_value": float(index)})
+                for index, candidate in enumerate(choice.candidates)
+            ],
+        }
+    )
+    model = _tev1_model()
+
+    for example in (binary, choice, ordinal):
+        prepared = model._prepare(example)
+        options = json.loads(prepared["user_prompt"])["options"]
+        assert [option["key"] for option in options] == [
+            candidate.id for candidate in example.candidates
+        ]
+        assert [option["label"] for option in options] == list(
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[: len(example.candidates)]
+        )
+        assert prepared["candidate_ids"] == [candidate.id for candidate in example.candidates]
+
+
+def test_tev1_rejects_candidate_counts_above_native_limit_as_unsupported() -> None:
+    example = _example().model_copy(
+        update={
+            "candidates": [
+                Candidate(id=f"option-{index}", label=f"Option {index}") for index in range(25)
+            ],
+            "gold_candidate_id": "option-0",
+            "gold_probabilities": [1.0] + [0.0] * 24,
+        }
+    )
+
+    with pytest.raises(UnsupportedCandidateCount, match="at most 24 candidates"):
+        _tev1_model().validate_example(example)
+
+
+def test_tev1_marks_unfit_minimum_prompt_as_unsupported() -> None:
+    example = _example().model_copy(
+        update={
+            "candidates": [
+                Candidate(id=f"candidate-{index}-" + "x" * 100, label=f"Option {index}")
+                for index in range(24)
+            ],
+            "gold_candidate_id": "candidate-0-" + "x" * 100,
+            "gold_probabilities": [1.0] + [0.0] * 23,
+        }
+    )
+
+    with pytest.raises(UnsupportedInputLength, match="minimally preserved text exceed"):
+        _tev1_model().validate_example(example)

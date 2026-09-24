@@ -278,7 +278,7 @@ def run_public_hf(
     model_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
     output_dir: Annotated[Path, typer.Argument(file_okay=False)],
     model_type: Annotated[
-        Literal["cua-s1", "mojev", "nanojev", "openjev", "system-one"], typer.Option()
+        Literal["cua-s1", "mojev", "nanojev", "openjev", "system-one", "tev1"], typer.Option()
     ],
     model_repo: Annotated[str, typer.Option()],
     model_revision: Annotated[str, typer.Option()],
@@ -288,6 +288,8 @@ def run_public_hf(
     batch_size: Annotated[int, typer.Option(min=1)] = 8,
     max_prompt_characters_per_batch: Annotated[int, typer.Option(min=1)] = 262_144,
     attn_implementation: Annotated[str, typer.Option()] = "sdpa",
+    checkpoint_dir: Annotated[Path | None, typer.Option()] = None,
+    checkpoint_interval_seconds: Annotated[int, typer.Option(min=1)] = 120,
     smoke: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Run a public HF decision model through its published native contract."""
@@ -309,6 +311,8 @@ def run_public_hf(
         batch_size=batch_size,
         max_prompt_characters_per_batch=max_prompt_characters_per_batch,
         attn_implementation=attn_implementation,
+        checkpoint_dir=checkpoint_dir,
+        checkpoint_interval_seconds=checkpoint_interval_seconds,
         benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))

@@ -56,7 +56,7 @@ def main() -> None:
     parser.add_argument("--model-dir", type=Path, required=True)
     parser.add_argument(
         "--model-type",
-        choices=("bosun", "cua-s1", "mojev", "nimble", "nanojev", "openjev", "system-one"),
+        choices=("bosun", "cua-s1", "mojev", "nimble", "nanojev", "openjev", "system-one", "tev1"),
         default="bosun",
     )
     parser.add_argument("--model-repo")
@@ -64,6 +64,8 @@ def main() -> None:
     parser.add_argument("--base-revision")
     parser.add_argument("--expected-weights-sha256")
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--checkpoint-dir", type=Path)
+    parser.add_argument("--checkpoint-interval-seconds", type=int, default=120)
     parser.add_argument("--expected-rows", type=int)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--max-prompt-characters-per-batch", type=int, default=1_048_576)
@@ -77,7 +79,7 @@ def main() -> None:
         "run-nimble-hf"
         if args.model_type == "nimble"
         else "run-public-hf"
-        if args.model_type in {"cua-s1", "mojev", "nanojev", "openjev", "system-one"}
+        if args.model_type in {"cua-s1", "mojev", "nanojev", "openjev", "system-one", "tev1"}
         else "run-hf"
     )
     command = [
@@ -95,7 +97,7 @@ def main() -> None:
         "--max-prompt-characters-per-batch",
         str(args.max_prompt_characters_per_batch),
     ]
-    if args.model_type in {"cua-s1", "mojev", "nanojev", "openjev", "system-one"}:
+    if args.model_type in {"cua-s1", "mojev", "nanojev", "openjev", "system-one", "tev1"}:
         if not args.model_repo or not args.model_revision:
             raise ValueError("public HF models require --model-repo and --model-revision")
         command.extend(
@@ -114,6 +116,15 @@ def main() -> None:
             command.extend(
                 ["--expected-weights-sha256", args.expected_weights_sha256]
             )
+    if args.checkpoint_dir is not None:
+        command.extend(
+            [
+                "--checkpoint-dir",
+                str(args.checkpoint_dir),
+                "--checkpoint-interval-seconds",
+                str(args.checkpoint_interval_seconds),
+            ]
+        )
     if args.smoke:
         command.append("--smoke")
     environment = dict(os.environ)
@@ -138,7 +149,7 @@ def main() -> None:
         raise RuntimeError("full DecisionBench runs require --expected-rows")
     if args.smoke and requested_rows <= 0:
         raise RuntimeError("DecisionBench smoke selected no rows")
-    if args.model_type in {"cua-s1", "mojev", "nimble", "nanojev", "openjev", "system-one"}:
+    if args.model_type in {"cua-s1", "mojev", "nimble", "nanojev", "openjev", "system-one", "tev1"}:
         if summary["successful_rows"] + summary["error_rows"] != requested_rows:
             raise RuntimeError("DecisionBench recorded-row gate failed")
         if (
