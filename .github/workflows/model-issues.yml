@@ -1,0 +1,98 @@
+name: Model issue intake
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  adapter-pr:
+    if: >-
+      github.event.action == 'opened' &&
+      contains(github.event.issue.labels.*.name, 'model') &&
+      contains(fromJSON('["CONTRIBUTOR","MEMBER","OWNER","COLLABORATOR"]'), github.event.issue.author_association)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: model-issue-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Check out DecisionBench
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install guarded GitHub channel
+        run: >-
+          pip install
+          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@7dcc9c40cfa1601e63005250255deb4ecbb14b54#subdirectory=packages/exoclaw-github'
+
+      - name: Prepare model adapter
+        run: python -m exoclaw_github
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
+          EXOCLAW_MODEL: fireworks_ai/accounts/fireworks/models/deepseek-v4-flash
+          EXOCLAW_ALLOWED_EVENTS: issues
+          EXOCLAW_ISSUE_LABEL: model
+          EXOCLAW_ISSUE_AUTHOR_ASSOCIATIONS: CONTRIBUTOR,MEMBER,OWNER,COLLABORATOR
+          EXOCLAW_SKILLS_DIR: .agents/skills
+          EXOCLAW_ALLOWED_SKILLS: decisionbench-add-model
+          EXOCLAW_ALLOWED_TOOLS: load_skill,read_file,write_file,edit_file,list_dir
+
+      - name: Limit generated changes
+        id: changes
+        shell: bash
+        run: |
+          git add -A
+          while IFS= read -r -d '' path; do
+            case "$path" in
+              src/decision_bench/*|jobs/*|docs/overview/models.md|docs/contributing/adding_a_model.md|tests/*|pyproject.toml|uv.lock) ;;
+              *) echo "::error::Disallowed generated path: $path"; exit 1 ;;
+            esac
+          done < <(git diff --cached --name-only -z)
+          if git diff --cached --quiet; then
+            echo 'has_changes=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'has_changes=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Exchange PR credential
+        if: steps.changes.outputs.has_changes == 'true'
+        id: octo-sts
+        uses: octo-sts/action@b6a4c9287012d2e1d2477d4f25d6f35de668e2d3
+        with:
+          scope: Hanno-Labs/decision-bench
+          identity: decisionbench-model-issues
+
+      - name: Open adapter PR
+        if: steps.changes.outputs.has_changes == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          branch="codex/model-issue-${ISSUE_NUMBER}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -c core.hooksPath=/dev/null commit -m "Add model adapter from issue #${ISSUE_NUMBER}"
+          gh auth setup-git
+          git push origin "HEAD:refs/heads/${branch}"
+          cat > "$RUNNER_TEMP/model-pr-body.md" <<EOF
+          Implements the model request in #${ISSUE_NUMBER}.
+
+          Generated adapter changes require review and CI. A full benchmark and a results PR follow the approved adapter revision.
+          EOF
+          gh pr create --base main --head "$branch" \
+            --title "Add model adapter from issue #${ISSUE_NUMBER}" \
+            --body-file "$RUNNER_TEMP/model-pr-body.md"
