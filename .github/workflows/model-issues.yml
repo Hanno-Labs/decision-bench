@@ -35,7 +35,7 @@ jobs:
       - name: Install guarded GitHub channel
         run: >-
           pip install
-          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@7ab2b0cb5e38cf95c7df498efb43cb27d4a18f12#subdirectory=packages/exoclaw-github'
+          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@9aacb8c4538da84edb6e53997734251d7b360982#subdirectory=packages/exoclaw-github'
 
       - name: Prepare model adapter
         run: python -m exoclaw_github
@@ -43,12 +43,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
           EXOCLAW_MODEL: fireworks_ai/accounts/fireworks/models/deepseek-v4p1-flash
+          EXOCLAW_MAX_ITERATIONS: '80'
           EXOCLAW_ALLOWED_EVENTS: issues
           EXOCLAW_ISSUE_LABEL: model
           EXOCLAW_ISSUE_AUTHOR_ASSOCIATIONS: CONTRIBUTOR,MEMBER,OWNER,COLLABORATOR
           EXOCLAW_SKILLS_DIR: .agents/skills
           EXOCLAW_ALLOWED_SKILLS: decisionbench-add-model
-          EXOCLAW_ALLOWED_TOOLS: load_skill,read_file,write_file,edit_file,list_dir
+          EXOCLAW_ALLOWED_TOOLS: load_skill,read_file,write_file,edit_file,list_dir,web_fetch
 
       - name: Limit generated changes
         id: changes
@@ -62,10 +63,10 @@ jobs:
             esac
           done < <(git diff --cached --name-only -z)
           if git diff --cached --quiet; then
-            echo 'has_changes=false' >> "$GITHUB_OUTPUT"
-          else
-            echo 'has_changes=true' >> "$GITHUB_OUTPUT"
+            echo '::error::Model agent produced no adapter changes'
+            exit 1
           fi
+          echo 'has_changes=true' >> "$GITHUB_OUTPUT"
 
       - name: Exchange PR credential
         if: steps.changes.outputs.has_changes == 'true'

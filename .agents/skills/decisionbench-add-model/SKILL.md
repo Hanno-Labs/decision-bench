@@ -18,6 +18,14 @@ compute are available. In that turn, prepare the adapter and explain remaining
 validation in the PR. CI and the later evaluation workflow perform executable
 checks; do not claim a check or benchmark ran from file edits alone.
 
+For an issue-triggered turn, use `web_fetch` for the pinned model card and
+public source; `read_file` only reads the checkout. Read each relevant local file
+in substantial windows, keep track of what you have already read, and move to
+the adapter once the loader and probability readout are clear. Do not spend the
+iteration budget rereading the same files. If the available evidence cannot
+support a valid adapter, explain the exact missing contract in your final issue
+response instead of writing a speculative one.
+
 ## Establish the model contract
 
 1. Check existing adapters, result records, and open PRs for this exact model and
