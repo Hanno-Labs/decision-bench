@@ -35,7 +35,7 @@ jobs:
       - name: Install guarded GitHub channel
         run: >-
           pip install
-          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@7dcc9c40cfa1601e63005250255deb4ecbb14b54#subdirectory=packages/exoclaw-github'
+          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@7ab2b0cb5e38cf95c7df498efb43cb27d4a18f12#subdirectory=packages/exoclaw-github'
 
       - name: Prepare model adapter
         run: python -m exoclaw_github
