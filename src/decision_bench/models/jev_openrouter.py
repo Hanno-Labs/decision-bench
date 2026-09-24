@@ -259,6 +259,9 @@ def prediction_from_jev_answer(
     )
 
 
+_prediction_from_answer = prediction_from_jev_answer
+
+
 def _binary_outcomes(example: DecisionExample) -> tuple[Candidate, Candidate]:
     if len(example.candidates) != 2:
         raise ValueError(f"binary row {example.row_id} does not contain exactly two candidates")
