@@ -24,6 +24,9 @@ hf = [
   "safetensors>=0.6,<1",
   "torch>=2.8,<3",
 ]
+mojev = [
+  "mojev[transformers] @ git+https://github.com/MoLeMo-Lab/mojev.git@a74d58cd19ec573e83e8e27f9fecd837b8d830fb",
+]
 gguf = [
   "fastapi>=0.116,<1",
   "llama-cpp-python>=0.3,<1",

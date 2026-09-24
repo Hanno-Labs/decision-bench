@@ -15,6 +15,7 @@ from decision_bench.models import (
     CuaS1HFDecisionModel,
     HFDecisionModel,
     JevOpenRouterDecisionModel,
+    MoJevHFDecisionModel,
     NanoJevHFDecisionModel,
     NimbleHFDecisionModel,
     OpenJevHFDecisionModel,
@@ -282,7 +283,7 @@ def run_public_hf_evaluation(
     output_dir: Path,
     *,
     model_dir: Path,
-    model_type: Literal["cua-s1", "nanojev", "openjev", "system-one"],
+    model_type: Literal["cua-s1", "mojev", "nanojev", "openjev", "system-one"],
     model_repo: str,
     model_revision: str,
     base_revision: str | None,
@@ -296,6 +297,7 @@ def run_public_hf_evaluation(
 
     decision_model: (
         CuaS1HFDecisionModel
+        | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
         | SystemOneHFDecisionModel
@@ -312,6 +314,12 @@ def run_public_hf_evaluation(
             base_revision=base_revision,
             expected_weights_sha256=expected_weights_sha256,
             attn_implementation=attn_implementation,
+        )
+    elif model_type == "mojev":
+        decision_model = MoJevHFDecisionModel(
+            model_dir=model_dir,
+            model_repo=model_repo,
+            model_revision=model_revision,
         )
     elif model_type == "nanojev":
         if expected_weights_sha256 is None:
@@ -408,6 +416,7 @@ def _run_hf_batches(
         HFDecisionModel
         | CuaS1HFDecisionModel
         | NimbleHFDecisionModel
+        | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
         | SystemOneHFDecisionModel
@@ -468,6 +477,7 @@ def _hf_batches(
         HFDecisionModel
         | CuaS1HFDecisionModel
         | NimbleHFDecisionModel
+        | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
         | SystemOneHFDecisionModel
@@ -477,27 +487,50 @@ def _hf_batches(
 ) -> list[list[DecisionExample]]:
     if batch_size < 1 or max_prompt_characters_per_batch < 1:
         raise ValueError("HF batch limits must be positive")
-    ordered = sorted(
-        examples,
-        key=lambda example: (len(example.candidates), decision_model.prompt_characters(example)),
-    )
+    if isinstance(decision_model, MoJevHFDecisionModel):
+        ordered = sorted(
+            examples,
+            key=lambda example: (
+                len(example.candidates),
+                decision_model.batch_key(example),
+                decision_model.prompt_characters(example),
+            ),
+        )
+    else:
+        ordered = sorted(
+            examples,
+            key=lambda example: (
+                len(example.candidates), decision_model.prompt_characters(example)
+            ),
+        )
     batches: list[list[DecisionExample]] = []
     current: list[DecisionExample] = []
     current_characters = 0
     current_candidate_count = 0
+    current_mojev_batch_key: tuple[str, str, int, tuple[str, ...]] | None = None
     for example in ordered:
         characters = decision_model.prompt_characters(example)
         candidate_count = len(example.candidates)
+        mojev_batch_key = (
+            decision_model.batch_key(example)
+            if isinstance(decision_model, MoJevHFDecisionModel)
+            else None
+        )
         if current and (
             len(current) >= batch_size
             or current_characters + characters > max_prompt_characters_per_batch
             or candidate_count != current_candidate_count
+            or (
+                isinstance(decision_model, MoJevHFDecisionModel)
+                and mojev_batch_key != current_mojev_batch_key
+            )
         ):
             batches.append(current)
             current = []
             current_characters = 0
         if not current:
             current_candidate_count = candidate_count
+            current_mojev_batch_key = mojev_batch_key
         current.append(example)
         current_characters += characters
     if current:
