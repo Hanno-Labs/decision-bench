@@ -35,7 +35,7 @@ jobs:
       - name: Install guarded GitHub channel
         run: >-
           pip install
-          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@1efdf0e2b21ba3e125b332b25535973c9cc9d731#subdirectory=packages/exoclaw-github'
+          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@4b815d4fb468e57a7b5ff84d9c3b069714b7f835#subdirectory=packages/exoclaw-github'
 
       - name: Prepare model adapter
         run: python -m exoclaw_github
@@ -43,7 +43,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
           EXOCLAW_MODEL: fireworks_ai/accounts/fireworks/models/deepseek-v4-flash
-          EXOCLAW_MODEL_ISSUE_GATE: 'true'
+          EXOCLAW_ALLOWED_EVENTS: issues
+          EXOCLAW_ISSUE_LABEL: model
+          EXOCLAW_ISSUE_AUTHOR_ASSOCIATIONS: CONTRIBUTOR,MEMBER,OWNER,COLLABORATOR
+          EXOCLAW_SKILLS_DIR: .agents/skills
+          EXOCLAW_ALLOWED_SKILLS: decisionbench-add-model
+          EXOCLAW_ALLOWED_TOOLS: read_file,write_file,edit_file,list_dir
 
       - name: Limit generated changes
         id: changes
