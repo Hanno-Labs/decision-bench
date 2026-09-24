@@ -15,6 +15,7 @@ from typing import Any, Literal
 
 from decision_bench.models import (
     CuaS1HFDecisionModel,
+    GLiNER25DecideModel,
     HFDecisionModel,
     JevOpenRouterDecisionModel,
     MoJevHFDecisionModel,
@@ -384,7 +385,7 @@ def run_public_hf_evaluation(
     output_dir: Path,
     *,
     model_dir: Path,
-    model_type: Literal["cua-s1", "mojev", "nanojev", "openjev", "system-one", "tev1"],
+    model_type: Literal["cua-s1", "gliner25", "mojev", "nanojev", "openjev", "system-one", "tev1"],
     model_repo: str,
     model_revision: str,
     base_revision: str | None,
@@ -403,6 +404,7 @@ def run_public_hf_evaluation(
 
     decision_model: (
         CuaS1HFDecisionModel
+        | GLiNER25DecideModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
@@ -421,6 +423,12 @@ def run_public_hf_evaluation(
             base_revision=base_revision,
             expected_weights_sha256=expected_weights_sha256,
             attn_implementation=attn_implementation,
+        )
+    elif model_type == "gliner25":
+        decision_model = GLiNER25DecideModel(
+            model_dir=model_dir,
+            model_repo=model_repo,
+            model_revision=model_revision,
         )
     elif model_type == "mojev":
         decision_model = MoJevHFDecisionModel(
@@ -545,6 +553,7 @@ def _run_hf_batches(
     decision_model: (
         HFDecisionModel
         | CuaS1HFDecisionModel
+        | GLiNER25DecideModel
         | NimbleHFDecisionModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
@@ -617,6 +626,7 @@ def _hf_batches(
     decision_model: (
         HFDecisionModel
         | CuaS1HFDecisionModel
+        | GLiNER25DecideModel
         | NimbleHFDecisionModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel

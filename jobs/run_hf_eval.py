@@ -5,7 +5,6 @@
 #   "accelerate==1.15.0",
 #   "datasets>=4.0,<5",
 #   "httpx[http2]>=0.28,<1",
-#   "mojev[transformers] @ git+https://github.com/MoLeMo-Lab/mojev.git@a74d58cd19ec573e83e8e27f9fecd837b8d830fb",
 #   "peft==0.21.0",
 #   "pillow==12.3.0",
 #   "pyarrow>=21,<22",
@@ -56,7 +55,17 @@ def main() -> None:
     parser.add_argument("--model-dir", type=Path, required=True)
     parser.add_argument(
         "--model-type",
-        choices=("bosun", "cua-s1", "mojev", "nimble", "nanojev", "openjev", "system-one", "tev1"),
+        choices=(
+            "bosun",
+            "cua-s1",
+            "gliner25",
+            "mojev",
+            "nimble",
+            "nanojev",
+            "openjev",
+            "system-one",
+            "tev1",
+        ),
         default="bosun",
     )
     parser.add_argument("--model-repo")
@@ -70,7 +79,7 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--max-prompt-characters-per-batch", type=int, default=1_048_576)
     parser.add_argument("--expected-successful-rows", type=int)
-    parser.add_argument("--expected-error-rows", type=int, default=0)
+    parser.add_argument("--expected-error-rows", type=int)
     parser.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -79,7 +88,8 @@ def main() -> None:
         "run-nimble-hf"
         if args.model_type == "nimble"
         else "run-public-hf"
-        if args.model_type in {"cua-s1", "mojev", "nanojev", "openjev", "system-one", "tev1"}
+        if args.model_type
+        in {"cua-s1", "gliner25", "mojev", "nanojev", "openjev", "system-one", "tev1"}
         else "run-hf"
     )
     command = [
@@ -97,7 +107,15 @@ def main() -> None:
         "--max-prompt-characters-per-batch",
         str(args.max_prompt_characters_per_batch),
     ]
-    if args.model_type in {"cua-s1", "mojev", "nanojev", "openjev", "system-one", "tev1"}:
+    if args.model_type in {
+        "cua-s1",
+        "gliner25",
+        "mojev",
+        "nanojev",
+        "openjev",
+        "system-one",
+        "tev1",
+    }:
         if not args.model_repo or not args.model_revision:
             raise ValueError("public HF models require --model-repo and --model-revision")
         command.extend(
@@ -149,7 +167,16 @@ def main() -> None:
         raise RuntimeError("full DecisionBench runs require --expected-rows")
     if args.smoke and requested_rows <= 0:
         raise RuntimeError("DecisionBench smoke selected no rows")
-    if args.model_type in {"cua-s1", "mojev", "nimble", "nanojev", "openjev", "system-one", "tev1"}:
+    if args.model_type in {
+        "cua-s1",
+        "gliner25",
+        "mojev",
+        "nimble",
+        "nanojev",
+        "openjev",
+        "system-one",
+        "tev1",
+    }:
         if summary["successful_rows"] + summary["error_rows"] != requested_rows:
             raise RuntimeError("DecisionBench recorded-row gate failed")
         if (
@@ -163,10 +190,19 @@ def main() -> None:
         ):
             raise RuntimeError("DecisionBench error-row gate failed")
     else:
-        expected_successful_rows = args.expected_successful_rows or requested_rows
-        if summary["successful_rows"] != expected_successful_rows:
+        expected_successful_rows = args.expected_successful_rows
+        expected_errors = args.expected_error_rows
+        if args.model_type != "gliner25":
+            if expected_successful_rows is None:
+                expected_successful_rows = requested_rows
+            if expected_errors is None:
+                expected_errors = 0
+        if (
+            expected_successful_rows is not None
+            and summary["successful_rows"] != expected_successful_rows
+        ):
             raise RuntimeError("DecisionBench successful-row gate failed")
-        if summary["error_rows"] != args.expected_error_rows:
+        if expected_errors is not None and summary["error_rows"] != expected_errors:
             raise RuntimeError("DecisionBench error-row gate failed")
     print(
         f"DECISION_BENCH_{args.model_type.upper().replace('-', '_')}_COMPLETE=1 "

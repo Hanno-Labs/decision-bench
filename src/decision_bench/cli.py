@@ -278,7 +278,8 @@ def run_public_hf(
     model_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
     output_dir: Annotated[Path, typer.Argument(file_okay=False)],
     model_type: Annotated[
-        Literal["cua-s1", "mojev", "nanojev", "openjev", "system-one", "tev1"], typer.Option()
+        Literal["cua-s1", "gliner25", "mojev", "nanojev", "openjev", "system-one", "tev1"],
+        typer.Option(),
     ],
     model_repo: Annotated[str, typer.Option()],
     model_revision: Annotated[str, typer.Option()],
