@@ -42,7 +42,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
-          EXOCLAW_MODEL: fireworks_ai/accounts/fireworks/models/deepseek-v4-flash
+          EXOCLAW_MODEL: fireworks_ai/accounts/fireworks/models/deepseek-v4p1-flash
           EXOCLAW_ALLOWED_EVENTS: issues
           EXOCLAW_ISSUE_LABEL: model
           EXOCLAW_ISSUE_AUTHOR_ASSOCIATIONS: CONTRIBUTOR,MEMBER,OWNER,COLLABORATOR
