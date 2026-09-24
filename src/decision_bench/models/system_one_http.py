@@ -28,6 +28,10 @@ XOR_SGLANG_IMAGE = (
 )
 
 
+class UnsupportedSystemOneInput(ValueError):
+    """The released SystemOne endpoint cannot score this benchmark row."""
+
+
 class SystemOneHTTPDecisionModel:
     """Run rows through a local, pinned Jev-compatible SystemOne endpoint."""
 
@@ -93,19 +97,19 @@ class SystemOneHTTPDecisionModel:
         """Reject rows outside the published serving contract without truncation."""
 
         if len(example.candidates) > self.max_candidates:
-            raise ValueError(
+            raise UnsupportedSystemOneInput(
                 f"SystemOne endpoint supports at most {self.max_candidates} candidates"
             )
         rendered_state = _render_state(example.state)
         if len(rendered_state) > self.max_rendered_state_characters:
-            raise ValueError(
+            raise UnsupportedSystemOneInput(
                 "rendered state exceeds the SystemOne endpoint character limit: "
                 f"{len(rendered_state)} > {self.max_rendered_state_characters}"
             )
         request, _ = build_jev_request(example, model=self.model)
         request_bytes = len(_serialize_request(request))
         if request_bytes > self.max_request_bytes:
-            raise ValueError(
+            raise UnsupportedSystemOneInput(
                 "serialized request exceeds the SystemOne endpoint byte limit: "
                 f"{request_bytes} > {self.max_request_bytes}"
             )
