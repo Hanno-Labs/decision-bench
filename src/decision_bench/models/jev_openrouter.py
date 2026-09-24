@@ -165,7 +165,7 @@ class JevOpenRouterDecisionModel:
                 answer = response["answers"]["decision"]
                 if not isinstance(answer, dict):
                     raise TypeError("Jev response answer is not an object")
-                prediction = _prediction_from_answer(example, answer, response_order)
+                prediction = prediction_from_jev_answer(example, answer, response_order)
                 return OpenRouterResponse(
                     prediction=prediction,
                     request=request,
@@ -228,7 +228,7 @@ class JevOpenRouterDecisionModel:
         self.close()
 
 
-def _prediction_from_answer(
+def prediction_from_jev_answer(
     example: DecisionExample,
     answer: dict[str, Any],
     response_order: list[str],
@@ -257,6 +257,9 @@ def _prediction_from_answer(
     return DecisionPrediction(
         probabilities=[by_candidate_id[candidate.id] for candidate in example.candidates]
     )
+
+
+_prediction_from_answer = prediction_from_jev_answer
 
 
 def _binary_outcomes(example: DecisionExample) -> tuple[Candidate, Candidate]:

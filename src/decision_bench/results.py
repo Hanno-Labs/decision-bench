@@ -357,7 +357,10 @@ def _classify_errors(raw_path: Path) -> dict[str, int]:
         if record.get("status") == "ok":
             continue
         error_type = str(record.get("error_type", ""))
-        if error_type.startswith("Unsupported"):
+        if error_type.startswith("Unsupported") or (
+            error_type == "ValueError"
+            and record.get("error") == "SystemOne endpoint supports at most 26 candidates"
+        ):
             unsupported_rows += 1
         else:
             error_rows += 1

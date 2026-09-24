@@ -21,6 +21,7 @@ from decision_bench.models import (
     OpenRouterDecisionModel,
     OpenRouterTopLogprobsDecisionModel,
     SystemOneHFDecisionModel,
+    SystemOneHTTPDecisionModel,
 )
 from decision_bench.models.jev_openrouter import JEV_CONTRACT_VERSION
 from decision_bench.prompt import (
@@ -123,6 +124,103 @@ def run_jev_openrouter_evaluation(
                 **(benchmark_metadata or {}),
             },
         )
+
+
+def run_system_one_http_evaluation(
+    examples: list[DecisionExample],
+    output_dir: Path,
+    *,
+    base_url: str,
+    model: str,
+    model_repo: str,
+    model_revision: str,
+    serving_bundle_sha256: str,
+    inference_image: str,
+    concurrency: int,
+    max_candidates: int = 26,
+    max_rendered_state_characters: int = 4 * 1024 * 1024,
+    max_request_bytes: int = 8 * 1024 * 1024,
+    benchmark_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Evaluate a pinned Jev-compatible SystemOne endpoint without truncation."""
+
+    with SystemOneHTTPDecisionModel(
+        base_url=base_url,
+        model=model,
+        model_repo=model_repo,
+        model_revision=model_revision,
+        serving_bundle_sha256=serving_bundle_sha256,
+        inference_image=inference_image,
+        max_candidates=max_candidates,
+        max_rendered_state_characters=max_rendered_state_characters,
+        max_request_bytes=max_request_bytes,
+    ) as decision_model:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        raw_path = output_dir / "raw.jsonl"
+        recorded = _recorded_row_ids(raw_path)
+        eligible: list[DecisionExample] = []
+        ineligible: list[DecisionExample] = []
+        with raw_path.open("a") as raw_handle:
+            for example in examples:
+                try:
+                    decision_model.validate_example(example)
+                except Exception as error:
+                    ineligible.append(example)
+                    if example.row_id in recorded:
+                        continue
+                    raw_handle.write(
+                        json.dumps(
+                            {
+                                "status": "error",
+                                "row_id": example.row_id,
+                                "task_name": example.task_name,
+                                "primitive": example.primitive.value,
+                                "family": example.family,
+                                "domain": example.domain,
+                                "candidate_count": len(example.candidates),
+                                "example": example.model_dump(mode="json"),
+                                "error_type": type(error).__name__,
+                                "error": str(error),
+                            },
+                            ensure_ascii=False,
+                            sort_keys=True,
+                        )
+                        + "\n"
+                    )
+                else:
+                    eligible.append(example)
+            raw_handle.flush()
+            os.fsync(raw_handle.fileno())
+
+        summary = _run_evaluation(
+            eligible,
+            output_dir,
+            decision_model=decision_model,
+            concurrency=concurrency,
+            metadata={**decision_model.metadata, **(benchmark_metadata or {})},
+        )
+        successful_rows = int(summary["successful_rows"])
+        correct_rows = 0
+        if successful_rows:
+            eligible_accuracy = float(summary["metrics"]["overall"]["accuracy"])
+            correct_rows = round(eligible_accuracy * successful_rows)
+        summary.update(
+            {
+                "requested_rows": len(examples),
+                "eligible_rows": len(eligible),
+                "ineligible_rows": len(ineligible),
+                "coverage": successful_rows / len(examples),
+                "benchmark_accuracy_counting_unsupported_as_incorrect": (
+                    correct_rows / len(examples)
+                ),
+                "ineligible_definition": decision_model.metadata[
+                    "eligibility_definition"
+                ],
+                "raw_sha256": _sha256_file(raw_path),
+            }
+        )
+        _write_run_artifacts(output_dir, summary)
+        return summary
 
 
 def run_openrouter_top_logprobs_evaluation(
@@ -513,6 +611,7 @@ def _run_evaluation(
         OpenRouterDecisionModel
         | JevOpenRouterDecisionModel
         | OpenRouterTopLogprobsDecisionModel
+        | SystemOneHTTPDecisionModel
     ),
     concurrency: int,
     metadata: dict[str, Any],
@@ -568,6 +667,7 @@ def _evaluate_one(
         OpenRouterDecisionModel
         | JevOpenRouterDecisionModel
         | OpenRouterTopLogprobsDecisionModel
+        | SystemOneHTTPDecisionModel
     ),
     example: DecisionExample,
 ) -> dict[str, Any]:
