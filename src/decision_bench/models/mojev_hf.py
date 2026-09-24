@@ -105,13 +105,11 @@ class MoJevHFDecisionModel:
             )
 
         self.model.build_mask = build_mask_for_encoder
-        self.processor = cast(
-            Any,
-            AutoProcessor.from_pretrained(
-                model_dir,
-                trust_remote_code=True,
-                local_files_only=True,
-            ),
+        auto_processor = cast(Any, AutoProcessor)
+        self.processor = auto_processor.from_pretrained(
+            model_dir,
+            trust_remote_code=True,
+            local_files_only=True,
         )
         self.tokenizer = self.processor.tokenizer
         configured_context = int(self.model.config.context_tokens)
