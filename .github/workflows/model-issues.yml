@@ -35,7 +35,7 @@ jobs:
       - name: Install guarded GitHub channel
         run: >-
           pip install
-          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@397eb7dc57d5629ba39fe2fb638be722912cb883#subdirectory=packages/exoclaw-github'
+          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@e5bf801cfef541bdaa6bb9e9d3dd401cb11fcc72#subdirectory=packages/exoclaw-github'
 
       - name: Prepare model adapter
         run: python -m exoclaw_github
@@ -48,7 +48,7 @@ jobs:
           EXOCLAW_ISSUE_AUTHOR_ASSOCIATIONS: CONTRIBUTOR,MEMBER,OWNER,COLLABORATOR
           EXOCLAW_SKILLS_DIR: .agents/skills
           EXOCLAW_ALLOWED_SKILLS: decisionbench-add-model
-          EXOCLAW_ALLOWED_TOOLS: read_file,write_file,edit_file,list_dir
+          EXOCLAW_ALLOWED_TOOLS: load_skill,read_file,write_file,edit_file,list_dir
 
       - name: Limit generated changes
         id: changes
