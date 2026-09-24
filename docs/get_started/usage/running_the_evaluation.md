@@ -41,6 +41,22 @@ If its native decision readout is not listed, [add a model adapter](../../contri
 that maps it to candidate probabilities. Start every new adapter with `--smoke`, inspect the saved
 raw rows, and then rerun without it for the complete benchmark.
 
+MoJev uses its packed candidate logits directly. Install the pinned adapter dependency and download
+the immutable model revision before evaluating it:
+
+```bash
+uv sync --extra mojev
+hf download MoLeMo-Lab/mojev \
+  --revision 0c8695b6252f4205907433d4e196a94f032e60c3 \
+  --local-dir models/mojev
+decision-bench run-public-hf task_specs/decisionbench-dev.toml \
+  models/mojev results/mojev \
+  --model-type mojev \
+  --model-repo MoLeMo-Lab/mojev \
+  --model-revision 0c8695b6252f4205907433d4e196a94f032e60c3 \
+  --smoke
+```
+
 Every run writes `raw.jsonl`, `summary.json`, and `manifest.json` to its output directory. After a
 full run, follow [Submit Results](../../contributing/submitting_results.md) to validate the local run,
 stage its compact result record, and open a result pull request.
