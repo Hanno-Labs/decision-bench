@@ -51,6 +51,9 @@ docs = [
 [project.scripts]
 decision-bench = "decision_bench.cli:app"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/decision_bench"]
 
