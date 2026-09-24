@@ -11,6 +11,7 @@ from decision_bench.models.public_hf import (
     NanoJevHFDecisionModel,
     OpenJevHFDecisionModel,
     SystemOneHFDecisionModel,
+    Tev1HFDecisionModel,
 )
 from decision_bench.models.system_one_http import SystemOneHTTPDecisionModel
 
@@ -28,4 +29,5 @@ __all__ = [
     "OpenRouterTopLogprobsDecisionModel",
     "SystemOneHFDecisionModel",
     "SystemOneHTTPDecisionModel",
+    "Tev1HFDecisionModel",
 ]
