@@ -21,6 +21,10 @@ MIN_CANDIDATES = 2
 MAX_CANDIDATES = 255
 
 
+class UnsupportedGLiNER25Input(ValueError):
+    """An example is outside the model's published input contract."""
+
+
 class GLiNER25DecideModel:
     """Adapter for the GLiNER2.5-Decide classification checkpoint."""
 
@@ -59,6 +63,7 @@ class GLiNER25DecideModel:
                 "min": MIN_CANDIDATES,
                 "max": MAX_CANDIDATES,
                 "unique_labels": True,
+                "label_restriction": "no '(' in candidate labels",
                 "effective_limit": "512 encoded tokens including schema",
             },
             "calibration": "not established; softmax is conditional option preference",
@@ -91,17 +96,21 @@ class GLiNER25DecideModel:
     def _prepare(self, example: DecisionExample) -> tuple[str, Any, int]:
         candidates = example.candidates
         if not (MIN_CANDIDATES <= len(candidates) <= MAX_CANDIDATES):
-            raise ValueError(
+            raise UnsupportedGLiNER25Input(
                 f"candidate count {len(candidates)} outside [{MIN_CANDIDATES}, {MAX_CANDIDATES}]"
             )
         ids = [candidate.id for candidate in candidates]
         if len(set(ids)) != len(ids):
-            raise ValueError("duplicate candidate ids are unsupported")
+            raise UnsupportedGLiNER25Input("duplicate candidate ids are unsupported")
         labels = [candidate.label for candidate in candidates]
         if any(not label or not label.strip() for label in labels):
-            raise ValueError("empty candidate labels are unsupported")
+            raise UnsupportedGLiNER25Input("empty candidate labels are unsupported")
         if len(set(labels)) != len(labels):
-            raise ValueError("duplicate candidate labels are unsupported")
+            raise UnsupportedGLiNER25Input("duplicate candidate labels are unsupported")
+        if any("(" in label for label in labels):
+            raise UnsupportedGLiNER25Input(
+                "candidate labels containing '(' are unsupported by GLiNER2"
+            )
         schema = self._build_schema(example)
         compiled = self._classifier.compile_schema(schema)
         text = self._format_input(example)
@@ -110,7 +119,7 @@ class GLiNER25DecideModel:
         )
         token_count = int(batch.input_ids.shape[1])
         if token_count > MAX_ENCODER_TOKENS:
-            raise ValueError(
+            raise UnsupportedGLiNER25Input(
                 f"encoded input is {token_count} tokens, over the "
                 f"{MAX_ENCODER_TOKENS}-token encoder limit"
             )
