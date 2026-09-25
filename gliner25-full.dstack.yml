@@ -38,9 +38,9 @@ commands:
 
 resources:
   gpu:
-    name: [A100]
+    name: [L4]
     count: 1
-    memory: 40GB..
+    memory: 24GB..
   cpu: 8..
   memory: 32GB..
   disk: 100GB..
