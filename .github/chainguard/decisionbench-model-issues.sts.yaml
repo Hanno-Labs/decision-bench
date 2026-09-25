@@ -1,6 +1,6 @@
 # GitHub Actions may exchange only this workflow's issue-event identity.
 issuer: https://token.actions.githubusercontent.com
-subject: repo:Hanno-Labs/decision-bench:ref:refs/heads/main
+subject: repo:Hanno-Labs@292504084/decision-bench@1378856643:ref:refs/heads/main
 claim_pattern:
   event_name: issues
   workflow_ref: Hanno-Labs/decision-bench/.github/workflows/model-issues.lock.yml@refs/heads/main
