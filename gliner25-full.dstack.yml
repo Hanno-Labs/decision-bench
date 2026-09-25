@@ -1,0 +1,50 @@
+type: task
+name: db-gliner25-eng23k-260925-r1
+fleets: [default]
+spot_policy: on-demand
+python: "3.12"
+shell: bash
+max_duration: 6h
+stop_duration: 5m
+
+files:
+  - ./src:/source/src
+  - ./jobs:/source/jobs
+  - ./task_specs:/source/task_specs
+  - ./pyproject.toml:/source/pyproject.toml
+  - ./uv.lock:/source/uv.lock
+  - ./README.md:/source/README.md
+  - ./LICENSE:/source/LICENSE
+
+env:
+  - HF_TOKEN=${{ secrets.hf_token }}
+  - HF_XET_HIGH_PERFORMANCE=1
+  - SOURCE_DIR=/source
+  - MODEL_TYPE=gliner25
+  - MODEL_REPO=fastino/GLiNER2.5-Decide
+  - MODEL_REVISION=0872ab149bd2f8a50ed5fc7ad8cfc3293e9a3bad
+  - OUTPUT_DIR=/workflow/out
+  - CHECKPOINT_DIR=/workflow/out/checkpoints
+  - CHECKPOINT_INTERVAL_SECONDS=120
+  - BATCH_SIZE=8
+  - MAX_PROMPT_CHARACTERS_PER_BATCH=262144
+  - RESULTS_URI=hf://buckets/Hanno-Labs/training/decision-bench/runs/gliner25-decide-eng-23900-20260925-r1
+  - RESULTS_SYNC_INTERVAL_SECONDS=120
+  - EXPECTED_ROWS=23900
+
+commands:
+  - pip install -U uv "hf>=1.32" "huggingface_hub>=1.32" hf_xet
+  - bash /source/jobs/run_public_hf_job.sh
+
+resources:
+  gpu:
+    name: [A100]
+    count: 1
+    memory: 40GB..
+  cpu: 8..
+  memory: 32GB..
+  disk: 100GB..
+
+retry:
+  on_events: [no-capacity, interruption, error]
+  duration: 8h

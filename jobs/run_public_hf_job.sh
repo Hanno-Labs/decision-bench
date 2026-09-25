@@ -63,7 +63,7 @@ if [ -n "${DATASET_DIR:-}" ]; then
   source_dir=$runtime_source
 fi
 
-uvx --from huggingface-hub==1.32.0 hf download \
+uv tool run --from huggingface-hub==1.32.0 hf download \
   "$MODEL_REPO" \
   --revision "$MODEL_REVISION" \
   --local-dir /tmp/model
