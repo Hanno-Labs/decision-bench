@@ -9,6 +9,21 @@ permissions:
   contents: read
 
 jobs:
+  workflow-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the workflow compiler
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-aw --pin v0.89.21
+      - name: Check generated workflow is current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh aw compile model-issues --no-check-update
+          git diff --exit-code -- .github/workflows/model-issues.lock.yml .github/aw/actions-lock.json .gitattributes
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -18,6 +33,6 @@ jobs:
           enable-cache: true
       - run: uv python install
       - run: uv sync --locked --group dev --extra hf
-      - run: uv run ruff check src tests jobs/run_hf_eval.py jobs/model_handoff.py jobs/model_results.py jobs/run_model_issue_stages.py
+      - run: uv run ruff check src tests jobs/run_hf_eval.py
       - run: uv run mypy --ignore-missing-imports src/decision_bench jobs/run_hf_eval.py
       - run: uv run pytest
