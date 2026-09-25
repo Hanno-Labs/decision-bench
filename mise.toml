@@ -43,5 +43,5 @@ description = "Set up local DecisionBench companion repositories"
 depends = ["clone"]
 
 [tasks.workflow-lock]
-description = "Regenerate the model issue workflow lock file"
-run = "gh aw compile model-issues --no-check-update"
+description = "Regenerate all agentic workflow lock files"
+run = "gh aw compile --no-check-update"
