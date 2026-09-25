@@ -30,26 +30,40 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Pi coding agent
+        run: npm install --global @earendil-works/pi-coding-agent@0.87.1
 
       - name: Install guarded GitHub channel
         run: >-
           pip install
-          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@9aacb8c4538da84edb6e53997734251d7b360982#subdirectory=packages/exoclaw-github'
+          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@cabbd1ea7fc953bc62cde826b94c01d2227ff022#subdirectory=packages/exoclaw-github'
 
-      - name: Prepare model adapter
-        run: python -m exoclaw_github
+      - name: Research model and prepare adapter
+        run: python jobs/run_model_issue_stages.py
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
-          EXOCLAW_MODEL: fireworks_ai/accounts/fireworks/models/deepseek-v4p1-flash
-          EXOCLAW_MAX_ITERATIONS: '80'
-          EXOCLAW_ALLOWED_EVENTS: issues
-          EXOCLAW_ISSUE_LABEL: model
-          EXOCLAW_ISSUE_AUTHOR_ASSOCIATIONS: CONTRIBUTOR,MEMBER,OWNER,COLLABORATOR
-          EXOCLAW_SKILLS_DIR: .agents/skills
-          EXOCLAW_ALLOWED_SKILLS: decisionbench-add-model
-          EXOCLAW_ALLOWED_TOOLS: load_skill,read_file,write_file,edit_file,list_dir,web_fetch
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Refresh dependency lockfile
+        shell: bash
+        run: |
+          if ! git diff --quiet -- pyproject.toml; then
+            uv lock
+          fi
+
+      - name: Check generated adapter
+        run: |
+          uv run ruff check src tests jobs/run_hf_eval.py jobs/run_model_issue_stages.py
+          uv run pytest -q
 
       - name: Limit generated changes
         id: changes
@@ -86,7 +100,7 @@ jobs:
           branch="codex/model-issue-${ISSUE_NUMBER}"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git -c core.hooksPath=/dev/null commit -m "Add model adapter from issue #${ISSUE_NUMBER}"
+          git commit -m "Add model adapter from issue #${ISSUE_NUMBER}"
           gh auth setup-git
           git push origin "HEAD:refs/heads/${branch}"
           cat > "$RUNNER_TEMP/model-pr-body.md" <<EOF
