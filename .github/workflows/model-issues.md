@@ -3,6 +3,7 @@ name: Model issue intake
 on:
   issues:
     types: [opened]
+  status-comment: true
   # The issue's author association gate below intentionally admits contributors without repo write access.
   roles: all
 if: >-
