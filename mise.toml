@@ -41,3 +41,7 @@ done
 [tasks.setup]
 description = "Set up local DecisionBench companion repositories"
 depends = ["clone"]
+
+[tasks.workflow-lock]
+description = "Regenerate all agentic workflow lock files"
+run = "gh aw compile --no-check-update"
