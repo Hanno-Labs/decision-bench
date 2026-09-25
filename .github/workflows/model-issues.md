@@ -59,6 +59,8 @@ safe-outputs:
   create-pull-request:
     max: 1
     base-branch: main
+    target-repo: Hanno-Labs/decision-bench
+    allowed-repos: [Hanno-Labs/decision-bench]
     draft: true
     if-no-changes: error
     auto-merge: false

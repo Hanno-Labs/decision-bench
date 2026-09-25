@@ -9,6 +9,21 @@ permissions:
   contents: read
 
 jobs:
+  workflow-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the workflow compiler
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-aw --pin v0.89.21
+      - name: Check generated workflow is current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh aw compile model-issues --no-check-update
+          git diff --exit-code -- .github/workflows/model-issues.lock.yml .github/aw/actions-lock.json .gitattributes
+
   test:
     runs-on: ubuntu-latest
     steps:
