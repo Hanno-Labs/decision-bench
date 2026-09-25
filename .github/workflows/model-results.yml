@@ -59,6 +59,8 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read
+      issues: read
+      pull-requests: read
       id-token: write
     steps:
       - name: Check out DecisionBench
