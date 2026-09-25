@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  adapter-pr:
+  prepare-adapter:
     if: >-
       github.event.action == 'opened' &&
       contains(github.event.issue.labels.*.name, 'model') &&
@@ -19,8 +19,8 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read
-      issues: write
-      id-token: write
+    outputs:
+      has_changes: ${{ steps.changes.outputs.has_changes }}
     steps:
       - name: Check out DecisionBench
         uses: actions/checkout@v4
@@ -30,26 +30,40 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Pi coding agent
+        run: npm install --global @earendil-works/pi-coding-agent@0.87.1
 
       - name: Install guarded GitHub channel
         run: >-
           pip install
-          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@9aacb8c4538da84edb6e53997734251d7b360982#subdirectory=packages/exoclaw-github'
+          'git+https://github.com/Clause-Logic/exoclaw-plugins.git@cabbd1ea7fc953bc62cde826b94c01d2227ff022#subdirectory=packages/exoclaw-github'
 
-      - name: Prepare model adapter
-        run: python -m exoclaw_github
+      - name: Research model and prepare adapter
+        run: python jobs/run_model_issue_stages.py
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
-          EXOCLAW_MODEL: fireworks_ai/accounts/fireworks/models/deepseek-v4p1-flash
-          EXOCLAW_MAX_ITERATIONS: '80'
-          EXOCLAW_ALLOWED_EVENTS: issues
-          EXOCLAW_ISSUE_LABEL: model
-          EXOCLAW_ISSUE_AUTHOR_ASSOCIATIONS: CONTRIBUTOR,MEMBER,OWNER,COLLABORATOR
-          EXOCLAW_SKILLS_DIR: .agents/skills
-          EXOCLAW_ALLOWED_SKILLS: decisionbench-add-model
-          EXOCLAW_ALLOWED_TOOLS: load_skill,read_file,write_file,edit_file,list_dir,web_fetch
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Refresh dependency lockfile
+        shell: bash
+        run: |
+          if ! git diff --quiet -- pyproject.toml; then
+            uv lock
+          fi
+
+      - name: Check generated adapter
+        run: |
+          uv run ruff check src tests jobs/run_hf_eval.py jobs/model_handoff.py jobs/model_results.py jobs/run_model_issue_stages.py
+          uv run pytest -q
 
       - name: Limit generated changes
         id: changes
@@ -61,6 +75,10 @@ jobs:
               src/decision_bench/*|jobs/*|docs/overview/models.md|docs/contributing/adding_a_model.md|tests/*|pyproject.toml|uv.lock) ;;
               *) echo "::error::Disallowed generated path: $path"; exit 1 ;;
             esac
+            if [ -L "$path" ]; then
+              echo "::error::Generated symlinks are disallowed: $path"
+              exit 1
+            fi
           done < <(git diff --cached --name-only -z)
           if git diff --cached --quiet; then
             echo '::error::Model agent produced no adapter changes'
@@ -68,8 +86,57 @@ jobs:
           fi
           echo 'has_changes=true' >> "$GITHUB_OUTPUT"
 
+      - name: Save reviewed patch for the PR job
+        shell: bash
+        run: git diff --cached --binary > "$RUNNER_TEMP/model-issue.patch"
+
+      - name: Upload reviewed patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-issue-patch
+          path: ${{ runner.temp }}/model-issue.patch
+          if-no-files-found: error
+          retention-days: 1
+
+  open-pr:
+    needs: prepare-adapter
+    if: needs.prepare-adapter.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out trusted base commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Download reviewed patch
+        uses: actions/download-artifact@v4
+        with:
+          name: model-issue-patch
+          path: ${{ runner.temp }}/model-issue-patch
+
+      - name: Apply reviewed patch without executing generated code
+        shell: bash
+        run: |
+          git apply --check "$RUNNER_TEMP/model-issue-patch/model-issue.patch"
+          git apply "$RUNNER_TEMP/model-issue-patch/model-issue.patch"
+          git add -A
+          while IFS= read -r -d '' path; do
+            case "$path" in
+              src/decision_bench/*|jobs/*|docs/overview/models.md|docs/contributing/adding_a_model.md|tests/*|pyproject.toml|uv.lock) ;;
+              *) echo "::error::Disallowed generated path: $path"; exit 1 ;;
+            esac
+            if [ -L "$path" ]; then
+              echo "::error::Generated symlinks are disallowed: $path"
+              exit 1
+            fi
+          done < <(git diff --cached --name-only -z)
+
       - name: Exchange PR credential
-        if: steps.changes.outputs.has_changes == 'true'
         id: octo-sts
         uses: octo-sts/action@b6a4c9287012d2e1d2477d4f25d6f35de668e2d3
         with:
@@ -77,18 +144,26 @@ jobs:
           identity: decisionbench-model-issues
 
       - name: Open adapter PR
-        if: steps.changes.outputs.has_changes == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           branch="codex/model-issue-${ISSUE_NUMBER}"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git -c core.hooksPath=/dev/null commit -m "Add model adapter from issue #${ISSUE_NUMBER}"
-          gh auth setup-git
-          git push origin "HEAD:refs/heads/${branch}"
+          existing_pr=$(gh pr list --repo Hanno-Labs/decision-bench --state all --head "$branch" --json number --jq '.[0].number // empty')
+          if [ -n "$existing_pr" ]; then
+            echo "Adapter PR already exists for issue #${ISSUE_NUMBER}"
+            exit 0
+          fi
+          if git ls-remote --exit-code origin "refs/heads/${branch}" >/dev/null 2>&1; then
+            echo "Reusing the existing adapter branch for issue #${ISSUE_NUMBER}"
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git -c core.hooksPath=/dev/null commit -m "Add model adapter from issue #${ISSUE_NUMBER}"
+            gh auth setup-git
+            git -c core.hooksPath=/dev/null push origin "HEAD:refs/heads/${branch}"
+          fi
           cat > "$RUNNER_TEMP/model-pr-body.md" <<EOF
           Implements the model request in #${ISSUE_NUMBER}.
 
