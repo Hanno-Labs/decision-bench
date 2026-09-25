@@ -69,7 +69,7 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/pi-config"
           PI_CODING_AGENT_DIR="$RUNNER_TEMP/pi-config" \
-            pi --print --no-session --no-context-files --no-extensions --no-skills \
+            pi --print --no-session --no-context-files --no-extensions --approve \
               --skill .agents/skills/decisionbench-add-model/SKILL.md \
               -e jobs/fireworks_uncapped.ts \
               --provider fireworks-uncapped \
