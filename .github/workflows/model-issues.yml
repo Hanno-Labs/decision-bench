@@ -62,7 +62,7 @@ jobs:
 
       - name: Check generated adapter
         run: |
-          uv run ruff check src tests jobs/run_hf_eval.py jobs/run_model_issue_stages.py
+          uv run ruff check src tests jobs/run_hf_eval.py jobs/model_handoff.py jobs/model_results.py jobs/run_model_issue_stages.py
           uv run pytest -q
 
       - name: Limit generated changes

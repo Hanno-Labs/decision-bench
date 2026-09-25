@@ -19,6 +19,7 @@ from typing import Any
 from exoclaw.bus.events import InboundMessage
 from exoclaw.utils import create_isolated_task
 from exoclaw_github.app import create
+from model_handoff import read_handoff
 
 ALLOWED_ASSOCIATIONS = frozenset({"CONTRIBUTOR", "MEMBER", "OWNER", "COLLABORATOR"})
 SKILL = "decisionbench-add-model"
@@ -136,7 +137,13 @@ candidate IDs and order, record raw model-facing input and output, reject
 unsupported rows explicitly, and add focused documentation and tests. Keep
 changes within the model adapter, its wiring, dependencies, docs, and tests.
 Do not run shell commands, open a PR, run a benchmark, or read credentials.
-Finish with changed paths and any facts still requiring runtime verification.
+Write jobs/model_requests/<issue_number>.json for the post-merge runner with
+exactly these fields: schema_version=1, issue_number, runner="public-hf",
+runner_model_type (the run-public-hf CLI model type), model_repo, immutable
+40-character model_revision, result_model_type, adapter, and
+probability_source. Do not write a handoff if the scoring contract is
+unresolved. Finish with changed paths and any facts still requiring runtime
+verification.
 
 UNTRUSTED ISSUE JSON:
 """
@@ -294,6 +301,7 @@ async def main() -> None:
                 print(f"{name}_note_chars={len(response)}")
             print(f"stage={name} changed_paths={json.dumps(after)} response_chars={len(response)}")
         run_pi_coding(issue=issue, research=research, repo=repo, state_root=state_root)
+        read_handoff(repo, issue["number"])
 
 
 if __name__ == "__main__":
