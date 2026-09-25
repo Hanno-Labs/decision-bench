@@ -63,6 +63,7 @@ class GLiNER25DecideModel:
                 "min": MIN_CANDIDATES,
                 "max": MAX_CANDIDATES,
                 "unique_labels": True,
+                "label_restriction": "no '(' in candidate labels",
                 "effective_limit": "512 encoded tokens including schema",
             },
             "calibration": "not established; softmax is conditional option preference",
@@ -106,6 +107,10 @@ class GLiNER25DecideModel:
             raise UnsupportedGLiNER25Input("empty candidate labels are unsupported")
         if len(set(labels)) != len(labels):
             raise UnsupportedGLiNER25Input("duplicate candidate labels are unsupported")
+        if any("(" in label for label in labels):
+            raise UnsupportedGLiNER25Input(
+                "candidate labels containing '(' are unsupported by GLiNER2"
+            )
         schema = self._build_schema(example)
         compiled = self._classifier.compile_schema(schema)
         text = self._format_input(example)

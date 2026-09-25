@@ -1,5 +1,5 @@
 type: task
-name: db-gliner25-eng23k-260925-r1
+name: db-gliner25-eng23k-260925-r2
 fleets: [default]
 spot_policy: on-demand
 python: "3.12"
@@ -28,7 +28,7 @@ env:
   - CHECKPOINT_INTERVAL_SECONDS=120
   - BATCH_SIZE=8
   - MAX_PROMPT_CHARACTERS_PER_BATCH=262144
-  - RESULTS_URI=hf://buckets/Hanno-Labs/training/decision-bench/runs/gliner25-decide-eng-23900-20260925-r1
+  - RESULTS_URI=hf://buckets/Hanno-Labs/training/decision-bench/runs/gliner25-decide-eng-23900-20260925-r2
   - RESULTS_SYNC_INTERVAL_SECONDS=120
   - EXPECTED_ROWS=23900
 
