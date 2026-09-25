@@ -196,7 +196,8 @@ def completed_job(issue_number: int, merge_sha: str) -> bool:
     if stage == "COMPLETED":
         return True
     if stage in {"ERROR", "FAILED", "CANCELED", "CANCELLED", "KILLED"}:
-        raise RuntimeError(f"HF Job {ids[0]} for issue #{issue_number} ended {stage}")
+        print(f"::warning::HF Job {ids[0]} for issue #{issue_number} ended {stage}")
+        return False
     print(f"HF Job {ids[0]} for issue #{issue_number}: {stage or 'pending'}")
     return False
 
@@ -298,6 +299,44 @@ def stage_result(
             "gh", "repo", "clone", RESULTS_REPO, str(results_repo), "--", "--branch", "main",
             env=results_env(),
         )
+        body = root / "pr-body.md"
+        body.write_text(
+            f"Full pinned DecisionBench result for {handoff['model_repo']} from "
+            f"Hanno-Labs/decision-bench#{pr_number}.\n\n"
+            f"Model revision: `{handoff['model_revision']}`.\n"
+            f"Adapter merge commit: `{merge_sha}`.\n"
+            f"Dataset revision: `{DATASET_REVISION}`.\n"
+            "The 23,900 raw rows and artifact hashes were verified before staging.\n"
+        )
+        existing_branch = command(
+            "git", "ls-remote", "--heads", "origin", f"refs/heads/{branch}",
+            cwd=results_repo, env=results_env(),
+        )
+        if existing_branch:
+            command("git", "fetch", "origin", branch, cwd=results_repo, env=results_env())
+            result_path = (
+                f"results/{handoff['model_repo'].replace('/', '__')}/"
+                f"{handoff['model_revision']}/DecisionBench.json"
+            )
+            record = json.loads(
+                command("git", "show", f"FETCH_HEAD:{result_path}", cwd=results_repo)
+            )
+            model = record.get("model") or {}
+            artifact = record.get("artifact") or {}
+            if (
+                model.get("name") != handoff["model_repo"]
+                or model.get("revision") != handoff["model_revision"]
+                or artifact.get("raw_sha256") != sha256(run_dir / "raw.jsonl")
+            ):
+                raise ValueError("Existing result branch differs from the verified run")
+            url = command(
+                "gh", "pr", "create", "--repo", RESULTS_REPO, "--base", "main",
+                "--head", branch, "--title",
+                f"Add {handoff['model_repo']} DecisionBench result",
+                "--body-file", str(body), cwd=results_repo, env=results_env(),
+            )
+            print(f"Opened verified results PR from existing branch: {url}")
+            return
         command("git", "switch", "-c", branch, cwd=results_repo)
         source_repo = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
         command(
@@ -337,15 +376,6 @@ def stage_result(
             cwd=results_repo,
         )
         command("git", "push", "-u", "origin", branch, cwd=results_repo, env=results_env())
-        body = root / "pr-body.md"
-        body.write_text(
-            f"Full pinned DecisionBench result for {handoff['model_repo']} from "
-            f"Hanno-Labs/decision-bench#{pr_number}.\n\n"
-            f"Model revision: `{handoff['model_revision']}`.\n"
-            f"Adapter merge commit: `{merge_sha}`.\n"
-            f"Dataset revision: `{DATASET_REVISION}`.\n"
-            "The 23,900 raw rows and artifact hashes were verified before staging.\n"
-        )
         url = command(
             "gh", "pr", "create", "--repo", RESULTS_REPO, "--base", "main",
             "--head", branch, "--title",
