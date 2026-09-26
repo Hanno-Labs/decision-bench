@@ -72,6 +72,8 @@ if [ "$MODEL_TYPE" = "tev1" ]; then
   set -- uv run --with torchvision==0.23.0 "$source_dir/jobs/run_hf_eval.py"
 elif [ "$MODEL_TYPE" = "gliner25" ]; then
   set -- uv run --with gliner2==2.0.0 "$source_dir/jobs/run_hf_eval.py"
+elif [ "$MODEL_TYPE" = "julia" ]; then
+  set -- uv run --with 'supersonic-julia @ git+https://huggingface.co/SupersonicLabs/Julia-1@a85b127321d580d65176c89ced8273f305745d85' "$source_dir/jobs/run_hf_eval.py"
 elif [ "$MODEL_TYPE" = "mojev" ]; then
   set -- uv run --with 'mojev[transformers] @ git+https://github.com/MoLeMo-Lab/mojev.git@a74d58cd19ec573e83e8e27f9fecd837b8d830fb' "$source_dir/jobs/run_hf_eval.py"
 else

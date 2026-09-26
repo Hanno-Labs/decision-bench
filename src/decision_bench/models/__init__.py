@@ -3,6 +3,7 @@
 from decision_bench.models.gliner25 import GLiNER25DecideModel
 from decision_bench.models.hf import HFDecisionModel, HFDecisionResponse
 from decision_bench.models.jev_openrouter import JevOpenRouterDecisionModel
+from decision_bench.models.julia_hf import JuliaHFDecisionModel
 from decision_bench.models.mojev_hf import MoJevHFDecisionModel
 from decision_bench.models.nimble_hf import NimbleHFDecisionModel
 from decision_bench.models.openrouter import OpenRouterDecisionModel, OpenRouterResponse
@@ -22,6 +23,7 @@ __all__ = [
     "HFDecisionModel",
     "HFDecisionResponse",
     "JevOpenRouterDecisionModel",
+    "JuliaHFDecisionModel",
     "MoJevHFDecisionModel",
     "NanoJevHFDecisionModel",
     "NimbleHFDecisionModel",

@@ -25,6 +25,7 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 | `run-nimble-hf` | [`bespokelabs/Bespoke-Nimble-9B`](https://huggingface.co/bespokelabs/Bespoke-Nimble-9B) | Published candidate-token logits; up to 26 choices |
 | `run-public-hf --model-type cua-s1` | [`cua-ai/cua-s1-4b-0.2`](https://huggingface.co/cua-ai/cua-s1-4b-0.2) text adapter | Published final-position option-letter logits; up to 26 candidates |
 | `run-public-hf --model-type gliner25` | [`fastino/GLiNER2.5-Decide`](https://huggingface.co/fastino/GLiNER2.5-Decide) | Exclusive classification logits over candidate labels, softmaxed as conditional option preference; rows over 512 encoded tokens or with `(` in a candidate label are unsupported |
+| `run-public-hf --model-type julia` | [`SupersonicLabs/Julia-1`](https://huggingface.co/SupersonicLabs/Julia-1) | Native resident decision engine: softmax over the model's per-option logits as conditional option preference; rows over 20 options or outside the strict lossless encoding (8,192-token context, 512-token head, 48-token options) are unsupported |
 | `run-public-hf --model-type mojev` | [`MoLeMo-Lab/mojev`](https://huggingface.co/MoLeMo-Lab/mojev) | Published packed candidate logits; up to 255 candidates |
 | `run-public-hf --model-type nanojev` | [`C-Tianyu/NanoJev`](https://huggingface.co/C-Tianyu/NanoJev) | Published parallel candidate-path head |
 | `run-public-hf --model-type openjev` | [`com-kotobalabs/open-jev-deberta-v3-large`](https://huggingface.co/com-kotobalabs/open-jev-deberta-v3-large) | Published grouped-span head |
@@ -41,6 +42,19 @@ The local Hugging Face rows run pinned weights. MoJev's adapter pins model revis
 surfaces: record the provider model name, request settings, and dated service snapshot when you
 submit results. `decision-bench --help` documents all runners; use the runner's `--help` for its
 required paths and model-specific options.
+
+The Julia-1 runner pins model revision `a85b127321d580d65176c89ced8273f305745d85` and checkpoint
+SHA-256 `df853bf7fe424420011f3d0c47a05d7341aa9eefa7fb9f203ea4aada4ad95b72`. Julia-1 ships as the
+`supersonic-julia` runtime, whose `transformers` pin conflicts with DecisionBench's own, so the job
+installs it per run with
+`uv run --with 'supersonic-julia @ git+https://huggingface.co/SupersonicLabs/Julia-1@a85b127321d580d65176c89ced8273f305745d85'`
+instead of adding it to the project's dependency graph. The adapter uses the release's strict
+lossless encoding and never truncates: rows that do not fit the 8,192-token context, 512-token
+head, or 48-token option budgets, or that exceed 20 options, are recorded as unsupported. Julia's
+`noul` type is a two-option `[false, true]` row, and its per-option softmax is a conditional
+preference rather than a calibrated confidence. Julia's `score` type answers a zero-based rubric
+index, so ordinal-scoring rows reuse the benchmark candidate list unchanged and the model's chosen
+index is not guaranteed to equal the benchmark's expected ordinal.
 
 The registered Cua-S1 release is adapter revision
 `16818868b0cc7813808aae4e87b417657046ab79` on base revision

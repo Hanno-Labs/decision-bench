@@ -59,6 +59,7 @@ def main() -> None:
             "bosun",
             "cua-s1",
             "gliner25",
+            "julia",
             "mojev",
             "nimble",
             "nanojev",
@@ -89,7 +90,7 @@ def main() -> None:
         if args.model_type == "nimble"
         else "run-public-hf"
         if args.model_type
-        in {"cua-s1", "gliner25", "mojev", "nanojev", "openjev", "system-one", "tev1"}
+        in {"cua-s1", "gliner25", "julia", "mojev", "nanojev", "openjev", "system-one", "tev1"}
         else "run-hf"
     )
     command = [
@@ -110,6 +111,7 @@ def main() -> None:
     if args.model_type in {
         "cua-s1",
         "gliner25",
+        "julia",
         "mojev",
         "nanojev",
         "openjev",
@@ -170,6 +172,7 @@ def main() -> None:
     if args.model_type in {
         "cua-s1",
         "gliner25",
+        "julia",
         "mojev",
         "nimble",
         "nanojev",
