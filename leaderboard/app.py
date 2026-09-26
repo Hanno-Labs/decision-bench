@@ -10,6 +10,7 @@ import pandas as pd
 DATA_PATH = Path(__file__).with_name("leaderboard.parquet")
 DISPLAY_COLUMNS = [
     "model",
+    "tags",
     "primary_accuracy",
     "supported_accuracy",
     "coverage",
@@ -76,6 +77,14 @@ with gr.Blocks(title="DecisionBench Leaderboard") as demo:
     with gr.Row():
         kind = gr.Dropdown(VIEW_KINDS, value=initial_kind, label="View")
         name = gr.Dropdown(initial_names, value=initial_name, label="Task or slice")
+    gr.HTML(
+        '<div>Tags <span tabindex="0" style="cursor:help; border-bottom:1px dotted" '
+        'aria-label="compact: A shorter rendering of the same benchmark rows. Candidate meaning, '
+        'gold labels, and scoring are preserved." '
+        'title="compact: A shorter rendering of the same benchmark rows. Candidate meaning, '
+        'gold labels, and scoring are preserved.">'
+        "?</span></div>"
+    )
     leaderboard = gr.DataFrame(value=table(initial_kind, initial_name), interactive=False)
     kind.change(view_names, inputs=kind, outputs=name)
     name.change(table, inputs=[kind, name], outputs=leaderboard)
