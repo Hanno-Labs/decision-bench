@@ -29,6 +29,7 @@ from decision_bench.models import (
     Tev1HFDecisionModel,
 )
 from decision_bench.models.jev_openrouter import JEV_CONTRACT_VERSION
+from decision_bench.models.system_one_http import XOR_ADAPTER_NAME, XOR_PROBABILITY_SOURCE
 from decision_bench.prompt import (
     PROMPT_VERSION,
     TOP_LOGPROBS_PROMPT_VERSION,
@@ -145,6 +146,8 @@ def run_system_one_http_evaluation(
     max_candidates: int = 26,
     max_rendered_state_characters: int = 4 * 1024 * 1024,
     max_request_bytes: int = 8 * 1024 * 1024,
+    adapter_name: str = XOR_ADAPTER_NAME,
+    probability_source: str = XOR_PROBABILITY_SOURCE,
     benchmark_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate a pinned Jev-compatible SystemOne endpoint without truncation."""
@@ -159,6 +162,8 @@ def run_system_one_http_evaluation(
         max_candidates=max_candidates,
         max_rendered_state_characters=max_rendered_state_characters,
         max_request_bytes=max_request_bytes,
+        adapter_name=adapter_name,
+        probability_source=probability_source,
     ) as decision_model:
         output_dir.mkdir(parents=True, exist_ok=True)
         raw_path = output_dir / "raw.jsonl"

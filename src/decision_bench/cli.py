@@ -381,6 +381,10 @@ def run_system_one_http(
         4 * 1024 * 1024
     ),
     max_request_bytes: Annotated[int, typer.Option(min=1)] = 8 * 1024 * 1024,
+    adapter_name: Annotated[str, typer.Option()] = "xor-serving-systemone-v1",
+    probability_source: Annotated[str, typer.Option()] = (
+        "forward_reverse_option_letter_logprobs_calibrated_v1"
+    ),
     smoke: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Run a pinned Jev-compatible SystemOne HTTP endpoint."""
@@ -403,6 +407,8 @@ def run_system_one_http(
         max_candidates=max_candidates,
         max_rendered_state_characters=max_rendered_state_characters,
         max_request_bytes=max_request_bytes,
+        adapter_name=adapter_name,
+        probability_source=probability_source,
         benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))

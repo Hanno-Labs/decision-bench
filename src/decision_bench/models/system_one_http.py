@@ -17,6 +17,8 @@ from decision_bench.schemas import DecisionExample
 
 SYSTEM_ONE_HTTP_CONTRACT_VERSION = "jev-compatible-systemone-http-v1"
 SYSTEM_ONE_HTTP_INPUT_POLICY_VERSION = "reject-over-serving-limit-v1"
+XOR_ADAPTER_NAME = "xor-serving-systemone-v1"
+XOR_PROBABILITY_SOURCE = "forward_reverse_option_letter_logprobs_calibrated_v1"
 XOR_MODEL_REPO = "juspay/xor"
 XOR_MODEL_REVISION = "679decd4c669e5c37f4ac29dbd9957997424c876"
 XOR_SERVING_BUNDLE_SHA256 = (
@@ -49,6 +51,8 @@ class SystemOneHTTPDecisionModel:
         max_request_bytes: int = 8 * 1024 * 1024,
         timeout_seconds: float = 180.0,
         max_retries: int = 4,
+        adapter_name: str = XOR_ADAPTER_NAME,
+        probability_source: str = XOR_PROBABILITY_SOURCE,
     ) -> None:
         if max_candidates < 2:
             raise ValueError("max_candidates must be at least two")
@@ -64,12 +68,14 @@ class SystemOneHTTPDecisionModel:
         self.max_rendered_state_characters = max_rendered_state_characters
         self.max_request_bytes = max_request_bytes
         self.max_retries = max_retries
+        self.adapter_name = adapter_name
+        self.probability_source = probability_source
         self._client = httpx.Client(base_url=self.base_url, timeout=timeout_seconds)
 
     @property
     def metadata(self) -> dict[str, Any]:
         return {
-            "adapter": "xor-serving-systemone-v1",
+            "adapter": self.adapter_name,
             "model": self.model,
             "model_repo": self.model_repo,
             "model_revision": self.model_revision,
@@ -82,9 +88,7 @@ class SystemOneHTTPDecisionModel:
             "max_rendered_state_characters": self.max_rendered_state_characters,
             "max_request_bytes": self.max_request_bytes,
             "input_truncation_policy": SYSTEM_ONE_HTTP_INPUT_POLICY_VERSION,
-            "probability_source": (
-                "forward_reverse_option_letter_logprobs_calibrated_v1"
-            ),
+            "probability_source": self.probability_source,
             "prediction_normalization": "divide_positive_finite_values_by_sum",
             "eligibility_definition": (
                 f"candidate_count <= {self.max_candidates}; rendered state <= "

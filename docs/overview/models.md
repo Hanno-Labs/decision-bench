@@ -32,6 +32,7 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 | `run-public-hf --model-type tev1` | [`togethercomputer/Tev1-4B-experimental`](https://huggingface.co/togethercomputer/Tev1-4B-experimental) | Softmax over A–X next-token logits; up to 24 choices |
 | `run-jev-openrouter` | [`typesafe/jev-1.13`](https://openrouter.ai/typesafe/jev-1.13) | OpenRouter Decisions API distributions |
 | `run-system-one-http` | [`juspay/xor`](https://huggingface.co/juspay/xor) | Released Jev-compatible SystemOne API; forward/reverse option-letter logprobs with published calibration; up to 26 candidates |
+| `run-system-one-http` (`jobs/run_imajev_eval.sh`) | [`mohit67890/imajev-4b`](https://huggingface.co/mohit67890/imajev-4b) | Open-weight Jev-compatible SystemOne server (Qwen3.5-4B + LoRA + trained 256-code decision readout); direct candidate scoring averaged over 4 option rotations, temperature-calibrated; up to 255 candidates, 65,536 input tokens |
 | `run-openrouter` | An OpenRouter chat model that can produce the required JSON-schema probability vector | Structured probability vector |
 | `run-openrouter-top-logprobs` | An OpenRouter chat model that returns every required candidate in top-logprobs | Conditional next-token probabilities |
 
@@ -55,3 +56,18 @@ The released bundle pins SGLang image digest
 runner sends the benchmark's Noul, Choice, and Score requests to `/v1/systemone`. Rows with more
 than 26 candidates, rendered state over 4 MiB, or serialized requests over 8 MiB remain explicit
 unsupported rows; the adapter never truncates them.
+
+The imajev runner (`jobs/run_imajev_eval.sh`) pins adapter revision
+`c9e5f132465da85d31735ec502d5557982671a7d` of `mohit67890/imajev-4b` (LoRA weights SHA-256
+`88c2c44361e0c469352495abcfee789ff73a4deae0811168d9402cfc2b6e749c`; every file is checked against the
+repository's `SHA256SUMS`) on base weights `Qwen/Qwen3.5-4B` at
+`851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`, and serves them with the model's own server,
+`scripts/playground/server.py` from `github.com/mohit67890/imajev` at commit
+`a0134749e0900189c129cd6bb5000969f3b64bb5` (`--backend torch --rotations 4 --calibration
+calibration-rot4.json --max-input-tokens 65536`). The server scores every offered candidate in one
+forward pass through a trained readout (no generation), averages the four cyclic option orders and
+applies the shipped temperature, which leaves the argmax unchanged. Rows with more than 255
+candidates remain explicit unsupported rows; at 65,536 input tokens every DecisionBench row fits.
+The run records `adapter=imajev-serving-systemone-v1` and
+`probability_source=trained_readout_4_rotation_mean_temperature_calibrated_v1` through the
+`--adapter-name` / `--probability-source` options.
