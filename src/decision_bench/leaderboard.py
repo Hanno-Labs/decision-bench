@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from decision_bench.results import ResultCache
+from decision_bench.results import RESULT_TAG_HELP, ResultCache
 
 
 def leaderboard_rows(results_dir: str | Path, *, view: str = "overall") -> list[dict[str, Any]]:
@@ -50,6 +50,11 @@ def create_app(results_dir: str | Path) -> Any:
             "as misses in the primary score."
         )
         view = gr.Dropdown(views, value="overall", label="Task, family, domain, or primitive view")
+        gr.HTML(
+            '<div>Tags <span tabindex="0" style="cursor:help; border-bottom:1px dotted" '
+            f'aria-label="compact: {RESULT_TAG_HELP["compact"]}" '
+            f'title="compact: {RESULT_TAG_HELP["compact"]}">?</span></div>'
+        )
         leaderboard = gr.DataFrame(value=table("overall"), interactive=False)
         view.change(table, inputs=view, outputs=leaderboard)
         gr.Markdown(

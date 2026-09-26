@@ -9,11 +9,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 DEFAULT_RESULTS_REPOSITORY = "https://github.com/Hanno-Labs/decision-bench-results.git"
 ENGLISH_SUITE_VIEW = "suite:DecisionBench(eng, v1)"
 ModelType = Literal["decision-model", "language-model", "classifier"]
+ResultTag = Literal["compact"]
+RESULT_TAG_HELP = {
+    "compact": (
+        "A shorter rendering of the same benchmark rows. Candidate meaning, gold labels, "
+        "and scoring are preserved."
+    ),
+}
 
 
 class ModelMetadata(BaseModel):
@@ -65,6 +72,7 @@ class DecisionBenchResult(BaseModel):
     dataset_repo: str = Field(min_length=1)
     dataset_revision: str = Field(min_length=1)
     task_spec_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    tags: tuple[ResultTag, ...] = ()
     model: ModelMetadata
     requested_rows: int = Field(ge=1)
     successful_rows: int = Field(ge=0)
@@ -79,6 +87,13 @@ class DecisionBenchResult(BaseModel):
     views: dict[str, ViewMetrics]
     artifact: ArtifactReference | None = None
     submitted_at: datetime
+
+    @field_validator("tags")
+    @classmethod
+    def tags_are_unique_and_sorted(cls, tags: tuple[ResultTag, ...]) -> tuple[ResultTag, ...]:
+        if len(tags) != len(set(tags)):
+            raise ValueError("result tags must be unique")
+        return tuple(sorted(tags))
 
     @model_validator(mode="after")
     def validate_counts(self) -> DecisionBenchResult:
@@ -150,6 +165,7 @@ class ResultCache:
                     "model_type": result.model.model_type,
                     "benchmark": result.benchmark_name,
                     "benchmark_version": result.benchmark_version,
+                    "tags": ", ".join(result.tags),
                     "view": view,
                     "primary_accuracy": result.primary_accuracy
                     if view == "overall"
@@ -181,6 +197,7 @@ class ResultCache:
         benchmark_version: str = "1.0",
         dataset_repo: str = "Hanno-Labs/decision-bench",
         task_spec_sha256: str | None = None,
+        tags: tuple[ResultTag, ...] = (),
     ) -> Path:
         """Validate a completed run and write its compact canonical result record."""
 
@@ -232,6 +249,7 @@ class ResultCache:
             dataset_repo=dataset_repo,
             dataset_revision=dataset_revision,
             task_spec_sha256=task_hash,
+            tags=tags,
             model=model,
             requested_rows=requested_rows,
             successful_rows=successful_rows,
@@ -266,7 +284,8 @@ class ResultCache:
         (model_dir / "model_meta.json").write_text(
             json.dumps(model.model_dump(mode="json"), indent=2, sort_keys=True) + "\n"
         )
-        result_path = model_dir / f"{_safe_name(benchmark_name)}.json"
+        tag_suffix = "" if not record.tags else "--" + "--".join(record.tags)
+        result_path = model_dir / f"{_safe_name(benchmark_name)}{tag_suffix}.json"
         payload = record.model_dump(mode="json")
         if payload["artifact"] is None:
             payload.pop("artifact")

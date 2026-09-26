@@ -23,7 +23,7 @@ from decision_bench.evaluate import (
     select_smoke_examples,
 )
 from decision_bench.prompt import prompt_sha256
-from decision_bench.results import ModelMetadata, ModelType, ResultCache
+from decision_bench.results import ModelMetadata, ModelType, ResultCache, ResultTag
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -146,6 +146,7 @@ def stage_result(
     benchmark_name: Annotated[str, typer.Option()] = "DecisionBench",
     benchmark_version: Annotated[str, typer.Option()] = "1.0",
     task_spec_sha256: Annotated[str | None, typer.Option()] = None,
+    tag: Annotated[ResultTag | None, typer.Option(help="Result tag, currently compact.")] = None,
     create_pr: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Stage one validated result record and optionally open a PR."""
@@ -168,6 +169,7 @@ def stage_result(
         benchmark_name=benchmark_name,
         benchmark_version=benchmark_version,
         task_spec_sha256=task_spec_sha256,
+        tags=(tag,) if tag else (),
     )
     typer.echo(json.dumps(cache.submit_result(result_path, create_pr=create_pr), indent=2))
 

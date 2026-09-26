@@ -70,6 +70,18 @@ def test_stage_and_load_result(tmp_path: Path) -> None:
     assert loaded.artifact is not None
     assert loaded.artifact.uri == "hf://buckets/org/bucket/run"
 
+    compact_path = cache.stage_result(
+        run,
+        model=loaded.model,
+        artifact_uri="hf://buckets/org/bucket/run",
+        dataset_revision="dataset-revision",
+        tags=("compact",),
+    )
+    assert result_path.name == "DecisionBench.json"
+    assert compact_path.name == "DecisionBench--compact.json"
+    assert {result.tags for result in cache.load_results()} == {(), ("compact",)}
+    assert {row["tags"] for row in cache.to_records()} == {"", "compact"}
+
 
 def test_stage_result_without_published_artifact(tmp_path: Path) -> None:
     run = tmp_path / "run"
