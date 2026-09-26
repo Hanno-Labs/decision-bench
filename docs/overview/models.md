@@ -25,6 +25,7 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 | `run-nimble-hf` | [`bespokelabs/Bespoke-Nimble-9B`](https://huggingface.co/bespokelabs/Bespoke-Nimble-9B) | Published candidate-token logits; up to 26 choices |
 | `run-public-hf --model-type cua-s1` | [`cua-ai/cua-s1-4b-0.2`](https://huggingface.co/cua-ai/cua-s1-4b-0.2) text adapter | Published final-position option-letter logits; up to 26 candidates |
 | `run-public-hf --model-type gliner25` | [`fastino/GLiNER2.5-Decide`](https://huggingface.co/fastino/GLiNER2.5-Decide) | Exclusive classification logits over candidate labels, softmaxed as conditional option preference; rows over 512 encoded tokens or with `(` in a candidate label are unsupported |
+| `run-public-hf --model-type intern-decision` | [`internlm/Intern-Decision-4B`](https://huggingface.co/internlm/Intern-Decision-4B) and the `Intern-Decision-0.8B`/`-2B` checkpoints | Masked softmax over the checkpoint's single-token answer symbols at each skeleton placeholder, then the published temperature calibration; up to 62 options |
 | `run-public-hf --model-type mojev` | [`MoLeMo-Lab/mojev`](https://huggingface.co/MoLeMo-Lab/mojev) | Published packed candidate logits; up to 255 candidates |
 | `run-public-hf --model-type nanojev` | [`C-Tianyu/NanoJev`](https://huggingface.co/C-Tianyu/NanoJev) | Published parallel candidate-path head |
 | `run-public-hf --model-type openjev` | [`com-kotobalabs/open-jev-deberta-v3-large`](https://huggingface.co/com-kotobalabs/open-jev-deberta-v3-large) | Published grouped-span head |
@@ -55,3 +56,13 @@ The released bundle pins SGLang image digest
 runner sends the benchmark's Noul, Choice, and Score requests to `/v1/systemone`. Rows with more
 than 26 candidates, rendered state over 4 MiB, or serialized requests over 8 MiB remain explicit
 unsupported rows; the adapter never truncates them.
+
+The Intern-Decision runner reads the checkpoint's own `inference.py` for its published
+temperature and model name and reproduces that script's masked-symbol readout without executing
+checkpoint code. The default registry pins `internlm/Intern-Decision-4B` at revision
+`0e5e6aa7d6d750e2b1504ba11a8136cb58aeb3cd` (temperature `1.99241824`); the `-2B` checkpoint
+revision `8797836c65fc91a2435b1fb6850b5f0aabd75cc3` (temperature `2.100509348278`) and the `-0.8B`
+checkpoint revision `85a0cc5a99d67ea8d56dfe98115689212867171d` (temperature `2.747760550703`)
+run through the same adapter with `--model-repo`/`--model-revision`. Rows with more than 62
+options or a chat skeleton over 8,192 tokens remain explicit unsupported rows; the adapter never
+truncates them.
