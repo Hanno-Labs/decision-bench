@@ -25,6 +25,7 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 | `run-nimble-hf` | [`bespokelabs/Bespoke-Nimble-9B`](https://huggingface.co/bespokelabs/Bespoke-Nimble-9B) | Published candidate-token logits; up to 26 choices |
 | `run-public-hf --model-type cua-s1` | [`cua-ai/cua-s1-4b-0.2`](https://huggingface.co/cua-ai/cua-s1-4b-0.2) text adapter | Published final-position option-letter logits; up to 26 candidates |
 | `run-public-hf --model-type gliner25` | [`fastino/GLiNER2.5-Decide`](https://huggingface.co/fastino/GLiNER2.5-Decide) | Exclusive classification logits over candidate labels, softmaxed as conditional option preference; rows over 512 encoded tokens or with `(` in a candidate label are unsupported |
+| `run-public-hf --model-type lev` | [`interfaze-ai/lev`](https://huggingface.co/interfaze-ai/lev) | Released System One readout: calibrated softmax over the supplied options from a single forward pass (letter-token readout, candidate-path head above the label-token cap); score rows are limited to lev's 2–10 levels |
 | `run-public-hf --model-type mojev` | [`MoLeMo-Lab/mojev`](https://huggingface.co/MoLeMo-Lab/mojev) | Published packed candidate logits; up to 255 candidates |
 | `run-public-hf --model-type nanojev` | [`C-Tianyu/NanoJev`](https://huggingface.co/C-Tianyu/NanoJev) | Published parallel candidate-path head |
 | `run-public-hf --model-type openjev` | [`com-kotobalabs/open-jev-deberta-v3-large`](https://huggingface.co/com-kotobalabs/open-jev-deberta-v3-large) | Published grouped-span head |
@@ -41,6 +42,21 @@ The local Hugging Face rows run pinned weights. MoJev's adapter pins model revis
 surfaces: record the provider model name, request settings, and dated service snapshot when you
 submit results. `decision-bench --help` documents all runners; use the runner's `--help` for its
 required paths and model-specific options.
+
+The lev runner pins the released adapter revision
+`f8ef71157ec06a7d3b6435bc0756f9d735c33748` and the inference code revision
+`cf104b69329302e4eac674a730c71f3511047db8` (`lev` 0.1.1 from `Abhinavexists/lev`). The release
+names `Qwen/Qwen3.5-4B` as its base model and the adapter layer loads that base without an
+adapter-level revision pin. Recorded release hashes are the LoRA weights
+`64c718974d7ed0c9b22a0304060669fa3289ff89b57e572d08b9e9a0dc0623c1`, the candidate-path head
+`27eedf7bb9e20d66432882b91297ef6e1ce3d23d81e94ed105ffadba77c6d3ad`, and the tokenizer
+`06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523`. The runner hands each row to
+the release's own System One inference path (bundled calibration, forward/reverse order averaging)
+and keeps the returned distribution over exactly the row's candidates; rows with more than 255
+candidates, choice rows with duplicate labels, binary rows without unambiguous true/false semantics,
+and score rows outside lev's 2–10 published levels stay explicit unsupported rows, and no row is
+truncated. The runner accepts `--expected-weights-sha256` to verify the LoRA weights against the
+pinned release hash before scoring.
 
 The registered Cua-S1 release is adapter revision
 `16818868b0cc7813808aae4e87b417657046ab79` on base revision

@@ -5,6 +5,7 @@
 #   "accelerate==1.15.0",
 #   "datasets>=4.0,<5",
 #   "httpx[http2]>=0.28,<1",
+#   "lev @ git+https://github.com/Abhinavexists/lev.git@cf104b69329302e4eac674a730c71f3511047db8#subdirectory=packages/lev",
 #   "peft==0.21.0",
 #   "pillow==12.3.0",
 #   "pyarrow>=21,<22",
@@ -59,6 +60,7 @@ def main() -> None:
             "bosun",
             "cua-s1",
             "gliner25",
+            "lev",
             "mojev",
             "nimble",
             "nanojev",
@@ -89,7 +91,7 @@ def main() -> None:
         if args.model_type == "nimble"
         else "run-public-hf"
         if args.model_type
-        in {"cua-s1", "gliner25", "mojev", "nanojev", "openjev", "system-one", "tev1"}
+        in {"cua-s1", "gliner25", "lev", "mojev", "nanojev", "openjev", "system-one", "tev1"}
         else "run-hf"
     )
     command = [
@@ -110,6 +112,7 @@ def main() -> None:
     if args.model_type in {
         "cua-s1",
         "gliner25",
+        "lev",
         "mojev",
         "nanojev",
         "openjev",
@@ -170,6 +173,7 @@ def main() -> None:
     if args.model_type in {
         "cua-s1",
         "gliner25",
+        "lev",
         "mojev",
         "nimble",
         "nanojev",

@@ -74,6 +74,8 @@ elif [ "$MODEL_TYPE" = "gliner25" ]; then
   set -- uv run --with gliner2==2.0.0 "$source_dir/jobs/run_hf_eval.py"
 elif [ "$MODEL_TYPE" = "mojev" ]; then
   set -- uv run --with 'mojev[transformers] @ git+https://github.com/MoLeMo-Lab/mojev.git@a74d58cd19ec573e83e8e27f9fecd837b8d830fb' "$source_dir/jobs/run_hf_eval.py"
+elif [ "$MODEL_TYPE" = "lev" ]; then
+  set -- uv run --with 'lev[serve] @ git+https://github.com/Abhinavexists/lev.git@cf104b69329302e4eac674a730c71f3511047db8#subdirectory=packages/lev' "$source_dir/jobs/run_hf_eval.py"
 else
   set -- uv run "$source_dir/jobs/run_hf_eval.py"
 fi
