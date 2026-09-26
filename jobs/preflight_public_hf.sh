@@ -11,4 +11,4 @@ uv run mypy --ignore-missing-imports --follow-imports=skip \
   src/decision_bench/models/mojev_hf.py \
   src/decision_bench/evaluate.py \
   jobs/run_hf_eval.py
-uv run pytest tests/test_hf_model.py tests/test_evaluate.py
+uv run pytest tests/test_hf_model.py tests/test_intern_decision_model.py tests/test_evaluate.py

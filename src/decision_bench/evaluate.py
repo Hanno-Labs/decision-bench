@@ -17,6 +17,7 @@ from decision_bench.models import (
     CuaS1HFDecisionModel,
     GLiNER25DecideModel,
     HFDecisionModel,
+    InternDecisionHFDecisionModel,
     JevOpenRouterDecisionModel,
     MoJevHFDecisionModel,
     NanoJevHFDecisionModel,
@@ -385,7 +386,16 @@ def run_public_hf_evaluation(
     output_dir: Path,
     *,
     model_dir: Path,
-    model_type: Literal["cua-s1", "gliner25", "mojev", "nanojev", "openjev", "system-one", "tev1"],
+    model_type: Literal[
+        "cua-s1",
+        "gliner25",
+        "intern-decision",
+        "mojev",
+        "nanojev",
+        "openjev",
+        "system-one",
+        "tev1",
+    ],
     model_repo: str,
     model_revision: str,
     base_revision: str | None,
@@ -405,6 +415,7 @@ def run_public_hf_evaluation(
     decision_model: (
         CuaS1HFDecisionModel
         | GLiNER25DecideModel
+        | InternDecisionHFDecisionModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
@@ -429,6 +440,13 @@ def run_public_hf_evaluation(
             model_dir=model_dir,
             model_repo=model_repo,
             model_revision=model_revision,
+        )
+    elif model_type == "intern-decision":
+        decision_model = InternDecisionHFDecisionModel(
+            model_dir=model_dir,
+            model_repo=model_repo,
+            model_revision=model_revision,
+            attn_implementation=attn_implementation,
         )
     elif model_type == "mojev":
         decision_model = MoJevHFDecisionModel(
@@ -534,7 +552,12 @@ def run_public_hf_evaluation(
                 "candidate_count > 24 or the decision protocol could not fit within "
                 "2,047 input tokens"
                 if model_type == "tev1"
-                else "rows rejected by the model adapter's input contract"
+                else (
+                    "candidate_count > 62 or the published chat skeleton exceeds "
+                    "8,192 input tokens"
+                    if model_type == "intern-decision"
+                    else "rows rejected by the model adapter's input contract"
+                )
             ),
             "coverage": successful_rows / len(examples),
             "benchmark_accuracy_counting_unsupported_as_incorrect": correct_rows
@@ -554,6 +577,7 @@ def _run_hf_batches(
         HFDecisionModel
         | CuaS1HFDecisionModel
         | GLiNER25DecideModel
+        | InternDecisionHFDecisionModel
         | NimbleHFDecisionModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
@@ -627,6 +651,7 @@ def _hf_batches(
         HFDecisionModel
         | CuaS1HFDecisionModel
         | GLiNER25DecideModel
+        | InternDecisionHFDecisionModel
         | NimbleHFDecisionModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
