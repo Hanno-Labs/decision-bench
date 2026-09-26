@@ -24,7 +24,7 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 | `run-hf` | [`Hanno-Labs/bosun-v3.1-0.6b`](https://huggingface.co/Hanno-Labs/bosun-v3.1-0.6b), [`Hanno-Labs/bosun-v3.1-1.7b`](https://huggingface.co/Hanno-Labs/bosun-v3.1-1.7b) | Masked softmax over valid decision tokens |
 | `run-nimble-hf` | [`bespokelabs/Bespoke-Nimble-9B`](https://huggingface.co/bespokelabs/Bespoke-Nimble-9B) | Published candidate-token logits; up to 26 choices |
 | `run-public-hf --model-type cua-s1` | [`cua-ai/cua-s1-4b-0.2`](https://huggingface.co/cua-ai/cua-s1-4b-0.2) text adapter | Published final-position option-letter logits; up to 26 candidates |
-| `run-public-hf --model-type gliner25` | [`fastino/GLiNER2.5-Decide`](https://huggingface.co/fastino/GLiNER2.5-Decide) | Exclusive classification logits over candidate labels, softmaxed as conditional option preference; rows over 512 encoded tokens or with `(` in a candidate label are unsupported |
+| `run-public-hf --model-type gliner25` | [`fastino/GLiNER2.5-Decide`](https://huggingface.co/fastino/GLiNER2.5-Decide) (span) and [`fastino/gliner2.5-small-v1`](https://huggingface.co/fastino/gliner2.5-small-v1) (boundary) | Exclusive classification logits over candidate labels, softmaxed as conditional option preference; rows over 512 encoded tokens or with `(` in a candidate label are unsupported |
 | `run-public-hf --model-type mojev` | [`MoLeMo-Lab/mojev`](https://huggingface.co/MoLeMo-Lab/mojev) | Published packed candidate logits; up to 255 candidates |
 | `run-public-hf --model-type nanojev` | [`C-Tianyu/NanoJev`](https://huggingface.co/C-Tianyu/NanoJev) | Published parallel candidate-path head |
 | `run-public-hf --model-type openjev` | [`com-kotobalabs/open-jev-deberta-v3-large`](https://huggingface.co/com-kotobalabs/open-jev-deberta-v3-large) | Published grouped-span head |
@@ -41,6 +41,14 @@ The local Hugging Face rows run pinned weights. MoJev's adapter pins model revis
 surfaces: record the provider model name, request settings, and dated service snapshot when you
 submit results. `decision-bench --help` documents all runners; use the runner's `--help` for its
 required paths and model-specific options.
+
+The `gliner25` adapter pins two checkpoints and verifies each loaded checkpoint's declared
+architecture before scoring: `fastino/GLiNER2.5-Decide` at revision
+`0872ab149bd2f8a50ed5fc7ad8cfc3293e9a3bad` (span) and `fastino/gliner2.5-small-v1` at revision
+`3ec6d3dd7e1e93a7cf9b46096fa47aeda61c711c` (boundary). Both expose the same exclusive
+classification readout, so a single adapter serves them; the run metadata records which
+checkpoint and architecture produced a run. The softmax is a conditional option preference, not a
+calibrated probability.
 
 The registered Cua-S1 release is adapter revision
 `16818868b0cc7813808aae4e87b417657046ab79` on base revision
