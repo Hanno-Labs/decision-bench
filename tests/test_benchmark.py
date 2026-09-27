@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -118,6 +119,63 @@ def test_builtin_benchmark_is_composed_from_pinned_tasks() -> None:
     assert len(benchmark.tasks) == 43
     assert len(benchmark.datasets) == 1
     assert benchmark.datasets[0].revision == "b7c8107e01ecb1aee7c7eaf5caee4a3ba9f59443"
+
+
+def test_compact_fields_select_same_rows_without_changing_task_metadata(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    loaded: list[DatasetSpec] = []
+
+    def fake_load_rows(
+        dataset: DatasetSpec,
+        *,
+        project_root: Path | None = None,
+    ) -> list[dict[str, Any]]:
+        loaded.append(dataset)
+        assert project_root == Path("/project")
+        rows = [
+            _row(
+                row_id="row-1",
+                task_name="contracts",
+                family="document_workflows",
+                domain="legal",
+            ),
+            _row(
+                row_id="row-2",
+                task_name="routing",
+                family="routing_triage",
+                domain="support",
+            ),
+        ]
+        for row in rows:
+            row["state_json"] = json.dumps(row.pop("state"))
+            row["candidates_json"] = json.dumps(row.pop("candidates"))
+            row["source_json"] = json.dumps(row.pop("source"))
+            row["compact_instruction"] = "Pick one."
+            row["compact_state_json"] = json.dumps({"text": "Compact"})
+            row["compact_candidates_json"] = row["candidates_json"]
+        return rows
+
+    monkeypatch.setattr("decision_bench.benchmark.load_rows", fake_load_rows)
+    benchmark = Benchmark(
+        spec=BenchmarkSpec(
+            name="Fixture",
+            version="1.0",
+            description="Fixture benchmark.",
+            languages=("eng-Latn",),
+            tasks=("ContractsFixture", "RoutingFixture"),
+        ),
+        tasks=(ContractsTask(), RoutingTask()),
+        project_root=Path("/project"),
+        compact_fields=True,
+    )
+
+    assert benchmark.datasets == (DATASET,)
+    assert [row.row_id for row in benchmark.examples] == ["row-1", "row-2"]
+    assert all(row.instruction == "Pick one." for row in benchmark.examples)
+    assert loaded == [DATASET]
+    assert benchmark.select(domain="legal").compact_fields is True
+    assert benchmark.tasks[0].metadata.dataset == DATASET
 
 
 def test_toml_benchmark_spec_composes_registered_tasks() -> None:

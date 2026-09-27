@@ -93,13 +93,38 @@ def load_examples(
     spec: DatasetSpec,
     *,
     project_root: Path | None = None,
+    compact_fields: bool = False,
 ) -> Iterator[DecisionExample]:
     """Validate raw dataset rows against the benchmark contract."""
 
     rows = load_rows(spec, project_root=project_root)
     for row in rows:
-        materialized = decode_storage_row(dict(_mapping(row)))
+        storage_row = dict(_mapping(row))
+        if compact_fields:
+            storage_row = select_compact_fields(storage_row)
+        materialized = decode_storage_row(storage_row)
         yield DecisionExample.model_validate(materialized)
+
+
+def select_compact_fields(row: dict[str, Any]) -> dict[str, Any]:
+    """Select compact model input from extra columns on the same frozen row."""
+
+    required = ("compact_instruction", "compact_state_json", "compact_candidates_json")
+    if any(key not in row or row[key] is None for key in required):
+        raise ValueError(f"{row.get('row_id', '<unknown>')}: compact fields are missing")
+    original = json.loads(row["candidates_json"])
+    compact = json.loads(row["compact_candidates_json"])
+    if len(original) != len(compact):
+        raise ValueError(f"{row['row_id']}: compact candidate count changed")
+    for before, after in zip(original, compact, strict=True):
+        for field in ("id", "label", "ordinal_value"):
+            if before.get(field) != after.get(field):
+                raise ValueError(f"{row['row_id']}: compact candidate {field} changed")
+    selected = dict(row)
+    selected["instruction"] = row["compact_instruction"]
+    selected["state_json"] = row["compact_state_json"]
+    selected["candidates_json"] = row["compact_candidates_json"]
+    return selected
 
 
 def _mapping(row: Mapping[str, Any] | object) -> Mapping[str, Any]:

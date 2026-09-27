@@ -10,7 +10,7 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from decision_bench.data import DatasetSpec, load_rows
+from decision_bench.data import DatasetSpec, load_rows, select_compact_fields
 from decision_bench.schemas import DecisionExample, Primitive
 from decision_bench.task_spec import BUILTIN_TASK_NAMES, DecisionTask, get_tasks
 
@@ -53,11 +53,13 @@ class Benchmark:
         tasks: tuple[DecisionTask, ...],
         project_root: Path,
         spec_path: Path | None = None,
+        compact_fields: bool = False,
     ) -> None:
         self.spec = spec
         self.tasks = tasks
         self.project_root = project_root
         self.spec_path = spec_path
+        self.compact_fields = compact_fields
 
     @cached_property
     def examples(self) -> tuple[DecisionExample, ...]:
@@ -79,7 +81,7 @@ class Benchmark:
         examples: list[DecisionExample] = []
         for key, member_tasks in grouped.items():
             rows = tuple(
-                dict(row)
+                select_compact_fields(dict(row)) if self.compact_fields else dict(row)
                 for row in load_rows(dataset_by_key[key], project_root=self.project_root)
             )
             for task in member_tasks:
@@ -127,6 +129,7 @@ class Benchmark:
             tasks=selected,
             project_root=self.project_root,
             spec_path=self.spec_path,
+            compact_fields=self.compact_fields,
         )
 
 
@@ -149,6 +152,7 @@ def get_benchmark(
     benchmark: str | Path | BenchmarkSpec = "DecisionBench",
     *,
     project_root: Path | None = None,
+    compact_fields: bool = False,
 ) -> Benchmark:
     """Resolve a registered name, TOML specification, or BenchmarkSpec."""
 
@@ -173,6 +177,7 @@ def get_benchmark(
         tasks=tuple(get_tasks(spec.tasks)),
         project_root=root,
         spec_path=spec_path,
+        compact_fields=compact_fields,
     )
 
 
