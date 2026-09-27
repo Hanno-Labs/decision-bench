@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -146,8 +147,6 @@ def test_compact_fields_select_same_rows_without_changing_task_metadata(
                 domain="support",
             ),
         ]
-        import json
-
         for row in rows:
             row["state_json"] = json.dumps(row.pop("state"))
             row["candidates_json"] = json.dumps(row.pop("candidates"))
