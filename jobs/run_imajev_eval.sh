@@ -40,9 +40,29 @@ done
 for value in SOURCE_DIR OUTPUT_DIR MODEL_DIR; do
   [[ -n "${!value}" ]] || { echo "missing --${value,,}" >&2; exit 2; }
 done
-TASK_SPEC="${TASK_SPEC:-$SOURCE_DIR/task_specs/decisionbench-dev.toml}"
-SERVING_DIR="$(dirname "$MODEL_DIR")/imajev-serving"
+SOURCE_DIR="$(cd "$SOURCE_DIR" && pwd -P)"
 mkdir -p "$MODEL_DIR" "$OUTPUT_DIR"
+MODEL_DIR="$(cd "$MODEL_DIR" && pwd -P)"
+OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd -P)"
+TASK_SPEC="${TASK_SPEC:-$SOURCE_DIR/task_specs/decisionbench-dev.toml}"
+TASK_SPEC="$(cd "$(dirname "$TASK_SPEC")" && pwd -P)/$(basename "$TASK_SPEC")"
+SERVING_DIR="$(dirname "$MODEL_DIR")/imajev-serving"
+SERVING_REQUIREMENTS="$SOURCE_DIR/jobs/imajev-serving-requirements.txt"
+
+# The contributor's server and its dependencies only need public model access.
+# Keep the job's HF and cloud credentials out of their install and runtime environment.
+PUBLIC_HOME="$(dirname "$MODEL_DIR")/imajev-public-home"
+mkdir -p "$PUBLIC_HOME"
+run_public() {
+  env -i \
+    HOME="$PUBLIC_HOME" \
+    HF_HOME="$SERVING_DIR/.cache/huggingface" \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    PATH="$PATH" \
+    CUDA_HOME="${CUDA_HOME:-}" \
+    LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" \
+    "$@"
+}
 
 if [[ -n "$DURABLE_URI" ]]; then hf sync "$DURABLE_URI" "$OUTPUT_DIR" || true; fi
 
@@ -55,13 +75,16 @@ hf download "$MODEL_REPO" --revision "$MODEL_REVISION" --local-dir "$MODEL_DIR"
 )
 
 # Pinned server: the model's own repository at one commit. The base weights are pinned by artifacts/model-qwen4b.json.
-if [[ ! -d "$SERVING_DIR/.git" ]]; then git clone --quiet "$SERVER_REPO" "$SERVING_DIR"; fi
-git -C "$SERVING_DIR" checkout --quiet "$SERVER_COMMIT"
+if [[ ! -d "$SERVING_DIR/.git" ]]; then run_public git clone --quiet "$SERVER_REPO" "$SERVING_DIR"; fi
+run_public git -C "$SERVING_DIR" checkout --quiet "$SERVER_COMMIT"
 python3 -m venv "$SERVING_DIR/.venv"
-"$SERVING_DIR/.venv/bin/pip" install --quiet --upgrade pip
 # flash-linear-attention and tilelang give the DeltaNet layers their CUDA kernels; without them the server falls back to a slow path.
-"$SERVING_DIR/.venv/bin/pip" install --quiet -e "$SERVING_DIR[serve,torch]" flash-linear-attention tilelang
-"$SERVING_DIR/.venv/bin/python" "$SERVING_DIR/scripts/download_model.py" --bundle "$SERVING_DIR/artifacts/model-qwen4b.json"
+run_public "$SERVING_DIR/.venv/bin/pip" install --quiet -r "$SERVING_REQUIREMENTS"
+run_public "$SERVING_DIR/.venv/bin/pip" install --quiet --no-deps --no-build-isolation -e "$SERVING_DIR"
+(
+  cd "$SERVING_DIR"
+  run_public .venv/bin/python scripts/download_model.py --model 4b
+)
 
 SERVER_PID=""
 SYNC_PID=""
@@ -79,7 +102,7 @@ fi
 
 (
   cd "$SERVING_DIR"
-  PYTHONPATH=src:scripts .venv/bin/python scripts/playground/server.py \
+  run_public /usr/bin/env PYTHONPATH=src:scripts .venv/bin/python scripts/playground/server.py \
     --backend torch \
     --model-bundle artifacts/model-qwen4b.json \
     --adapter "$MODEL_DIR" \
