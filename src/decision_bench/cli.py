@@ -28,6 +28,18 @@ from decision_bench.results import ModelMetadata, ModelType, ResultCache, Result
 app = typer.Typer(no_args_is_help=True)
 
 
+def _load_run_benchmark(
+    spec_path: Path,
+    project_root: Path,
+    compact_fields: bool,
+) -> Benchmark:
+    return get_benchmark(
+        spec_path,
+        project_root=project_root,
+        compact_fields=compact_fields,
+    )
+
+
 @app.command("inspect")
 def inspect_task(
     spec_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
@@ -60,6 +72,7 @@ def run_openrouter(
     spec_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     output_dir: Annotated[Path, typer.Argument(file_okay=False)],
     project_root: Annotated[Path | None, typer.Option()] = None,
+    compact_fields: Annotated[bool, typer.Option(help="Use compact fields on the pinned eval rows.")] = False,
     model: Annotated[str, typer.Option()] = "openai/gpt-5.6-luna",
     reasoning_effort: Annotated[str, typer.Option()] = "minimal",
     reasoning_family_effort: Annotated[str | None, typer.Option()] = None,
@@ -70,7 +83,7 @@ def run_openrouter(
     """Run a resumable OpenRouter evaluation and preserve complete raw I/O."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    benchmark = _load_run_benchmark(spec_path, resolved_root, compact_fields)
     examples = list(benchmark.examples)
     if smoke:
         examples = select_smoke_examples(examples)
@@ -92,6 +105,7 @@ def run_openrouter_top_logprobs(
     spec_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     output_dir: Annotated[Path, typer.Argument(file_okay=False)],
     project_root: Annotated[Path | None, typer.Option()] = None,
+    compact_fields: Annotated[bool, typer.Option(help="Use compact fields on the pinned eval rows.")] = False,
     model: Annotated[str, typer.Option()] = "openai/gpt-4o-mini",
     seed: Annotated[int, typer.Option()] = 0,
     concurrency: Annotated[int, typer.Option(min=1, max=256)] = 32,
@@ -101,7 +115,7 @@ def run_openrouter_top_logprobs(
     """Run eligible rows using native OpenRouter output-token logprobs."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    benchmark = _load_run_benchmark(spec_path, resolved_root, compact_fields)
     all_examples = list(benchmark.examples)
     examples = [example for example in all_examples if len(example.candidates) <= top_logprobs]
     if smoke:
@@ -137,6 +151,7 @@ def stage_result(
     model_revision: Annotated[str, typer.Option()],
     dataset_revision: Annotated[str, typer.Option()],
     model_type: Annotated[ModelType, typer.Option()],
+    dataset_repo: Annotated[str, typer.Option()] = "Hanno-Labs/decision-bench",
     artifact_uri: Annotated[str | None, typer.Option()] = None,
     adapter: Annotated[str, typer.Option()] = "decision-bench",
     probability_source: Annotated[str, typer.Option()] = "complete_candidate_distribution",
@@ -166,6 +181,7 @@ def stage_result(
         ),
         artifact_uri=artifact_uri,
         dataset_revision=dataset_revision,
+        dataset_repo=dataset_repo,
         benchmark_name=benchmark_name,
         benchmark_version=benchmark_version,
         task_spec_sha256=task_spec_sha256,
@@ -206,6 +222,7 @@ def run_hf(
     model_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
     output_dir: Annotated[Path, typer.Argument(file_okay=False)],
     project_root: Annotated[Path | None, typer.Option()] = None,
+    compact_fields: Annotated[bool, typer.Option(help="Use compact fields on the pinned eval rows.")] = False,
     seed: Annotated[int, typer.Option()] = 0,
     batch_size: Annotated[int, typer.Option(min=1)] = 64,
     max_prompt_characters_per_batch: Annotated[int, typer.Option(min=1)] = 1_048_576,
@@ -216,7 +233,7 @@ def run_hf(
     """Run a local Hugging Face decision-token checkpoint."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    benchmark = _load_run_benchmark(spec_path, resolved_root, compact_fields)
     examples = list(benchmark.examples)
     if smoke:
         examples = select_smoke_examples(examples)
@@ -240,6 +257,7 @@ def run_nimble_hf(
     model_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
     output_dir: Annotated[Path, typer.Argument(file_okay=False)],
     project_root: Annotated[Path | None, typer.Option()] = None,
+    compact_fields: Annotated[bool, typer.Option(help="Use compact fields on the pinned eval rows.")] = False,
     adapter_repo: Annotated[str, typer.Option()] = "bespokelabs/Bespoke-Nimble-9B",
     adapter_revision: Annotated[str, typer.Option()] = (
         "594dfdcfb6f94e3d0c0db7535180d3c71689169a"
@@ -255,7 +273,7 @@ def run_nimble_hf(
     """Run Bespoke-Nimble-9B through its pinned native candidate-logit contract."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    benchmark = _load_run_benchmark(spec_path, resolved_root, compact_fields)
     examples = list(benchmark.examples)
     if smoke:
         examples = select_smoke_examples(examples)
@@ -286,6 +304,7 @@ def run_public_hf(
     model_repo: Annotated[str, typer.Option()],
     model_revision: Annotated[str, typer.Option()],
     project_root: Annotated[Path | None, typer.Option()] = None,
+    compact_fields: Annotated[bool, typer.Option(help="Use compact fields on the pinned eval rows.")] = False,
     base_revision: Annotated[str | None, typer.Option()] = None,
     expected_weights_sha256: Annotated[str | None, typer.Option()] = None,
     batch_size: Annotated[int, typer.Option(min=1)] = 8,
@@ -298,7 +317,7 @@ def run_public_hf(
     """Run a public HF decision model through its published native contract."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    benchmark = _load_run_benchmark(spec_path, resolved_root, compact_fields)
     examples = list(benchmark.examples)
     if smoke:
         examples = select_smoke_examples(examples)
@@ -326,6 +345,7 @@ def run_jev_openrouter(
     spec_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     output_dir: Annotated[Path, typer.Argument(file_okay=False)],
     project_root: Annotated[Path | None, typer.Option()] = None,
+    compact_fields: Annotated[bool, typer.Option(help="Use compact fields on the pinned eval rows.")] = False,
     model: Annotated[str, typer.Option()] = "typesafe/jev-1.13",
     concurrency: Annotated[int, typer.Option(min=1, max=256)] = 32,
     max_state_question_tokens: Annotated[int, typer.Option(min=1)] = 32_000,
@@ -339,7 +359,7 @@ def run_jev_openrouter(
     """Run Jev through OpenRouter's native Decisions endpoint."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    benchmark = _load_run_benchmark(spec_path, resolved_root, compact_fields)
     examples = list(benchmark.examples)
     if smoke:
         examples = select_smoke_examples(examples)
@@ -362,6 +382,7 @@ def run_system_one_http(
     spec_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     output_dir: Annotated[Path, typer.Argument(file_okay=False)],
     project_root: Annotated[Path | None, typer.Option()] = None,
+    compact_fields: Annotated[bool, typer.Option(help="Use compact fields on the pinned eval rows.")] = False,
     base_url: Annotated[str, typer.Option()] = "http://127.0.0.1:30002",
     model: Annotated[str, typer.Option()] = "xor",
     model_repo: Annotated[str, typer.Option()] = "juspay/xor",
@@ -386,7 +407,7 @@ def run_system_one_http(
     """Run a pinned Jev-compatible SystemOne HTTP endpoint."""
 
     resolved_root = project_root if project_root is not None else Path.cwd()
-    benchmark = get_benchmark(spec_path, project_root=resolved_root)
+    benchmark = _load_run_benchmark(spec_path, resolved_root, compact_fields)
     examples = list(benchmark.examples)
     if smoke:
         examples = select_smoke_examples(examples)
@@ -440,6 +461,7 @@ def _benchmark_metadata(benchmark: Benchmark) -> dict[str, object]:
         "benchmark_version": benchmark.spec.version,
         "benchmark_tasks": [task.metadata.name for task in benchmark.tasks],
         "datasets": [dataset.model_dump(mode="json") for dataset in benchmark.datasets],
+        "compact_fields": benchmark.compact_fields,
     }
     if benchmark.spec_path is not None:
         metadata["task_spec_sha256"] = _sha256_file(benchmark.spec_path)

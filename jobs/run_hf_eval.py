@@ -53,6 +53,7 @@ def main() -> None:
         help="Task spec to evaluate; defaults to the development suite.",
     )
     parser.add_argument("--model-dir", type=Path, required=True)
+    parser.add_argument("--compact-fields", action="store_true")
     parser.add_argument(
         "--model-type",
         choices=(
@@ -107,6 +108,8 @@ def main() -> None:
         "--max-prompt-characters-per-batch",
         str(args.max_prompt_characters_per_batch),
     ]
+    if args.compact_fields:
+        command.append("--compact-fields")
     if args.model_type in {
         "cua-s1",
         "gliner25",

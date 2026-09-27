@@ -104,6 +104,9 @@ fi
 if [ -n "${EXPECTED_ERROR_ROWS:-}" ]; then
   set -- "$@" --expected-error-rows "$EXPECTED_ERROR_ROWS"
 fi
+if [ "${COMPACT_FIELDS:-0}" = "1" ]; then
+  set -- "$@" --compact-fields
+fi
 if [ "${SMOKE:-0}" = "1" ]; then
   set -- "$@" --smoke
 fi

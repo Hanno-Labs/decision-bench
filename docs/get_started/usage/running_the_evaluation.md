@@ -61,6 +61,22 @@ Every run writes `raw.jsonl`, `summary.json`, and `manifest.json` to its output 
 full run, follow [Submit Results](../../contributing/submitting_results.md) to validate the local run,
 stage its compact result record, and open a result pull request.
 
+## Opt into compact rows
+
+Pass `--compact-fields` to any `run-*` evaluator to select the compact instruction,
+state, and candidate descriptions on the same pinned public eval rows. The standard
+fields remain the default. For a remote HF job, set `COMPACT_FIELDS=1`.
+
+```bash
+decision-bench run-public-hf task_specs/decisionbench-dev.toml \
+  models/my-model results/my-model-compact \
+  --model-type gliner25 --model-repo ORG/MODEL --model-revision COMMIT_SHA \
+  --compact-fields --smoke
+```
+
+The run manifest records the pinned dataset revision and `compact_fields=true`.
+Stage a completed compact run with `--tag compact` and that dataset revision.
+
 ## Evaluate a hosted API model
 
 Hosted or closed models use their provider-specific adapter. For example, run a structured-output
