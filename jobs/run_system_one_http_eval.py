@@ -53,6 +53,11 @@ def main() -> None:
     parser.add_argument("--expected-rows", type=int)
     parser.add_argument("--expected-successful-rows", type=int)
     parser.add_argument("--expected-error-rows", type=int)
+    parser.add_argument("--max-candidates", type=int, default=26)
+    parser.add_argument("--adapter-name", default="xor-serving-systemone-v1")
+    parser.add_argument(
+        "--probability-source", default="forward_reverse_option_letter_logprobs_calibrated_v1"
+    )
     parser.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -80,6 +85,12 @@ def main() -> None:
         args.inference_image,
         "--concurrency",
         str(args.concurrency),
+        "--max-candidates",
+        str(args.max_candidates),
+        "--adapter-name",
+        args.adapter_name,
+        "--probability-source",
+        args.probability_source,
     ]
     if args.smoke:
         command.append("--smoke")

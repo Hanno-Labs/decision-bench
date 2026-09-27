@@ -1,0 +1,15 @@
+# Runtime dependencies declared by mohit67890/imajev at a0134749e0900189c129cd6bb5000969f3b64bb5.
+pydantic>=2,<3
+Pillow>=11
+huggingface_hub>=0.30
+torch>=2.6
+torchvision>=0.21
+transformers>=4.55
+peft>=0.15
+safetensors>=0.5
+accelerate>=1.0
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+flash-linear-attention
+tilelang
