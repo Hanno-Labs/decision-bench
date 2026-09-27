@@ -118,7 +118,7 @@ def test_builtin_benchmark_is_composed_from_pinned_tasks() -> None:
     assert benchmark.spec.name == "DecisionBench (eng, v1)"
     assert len(benchmark.tasks) == 43
     assert len(benchmark.datasets) == 1
-    assert benchmark.datasets[0].revision == "b7c8107e01ecb1aee7c7eaf5caee4a3ba9f59443"
+    assert benchmark.datasets[0].revision == "071b7b2d2e1504c89e1e5a811a3f82e1bfe3aedb"
 
 
 def test_compact_fields_select_same_rows_without_changing_task_metadata(
