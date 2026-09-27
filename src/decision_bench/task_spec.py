@@ -157,7 +157,7 @@ class _CanonicalDecisionBenchTask(DecisionTask):
 
 _CANONICAL_DATASET = DatasetSpec(
     path="Hanno-Labs/decision-bench",
-    revision="b7c8107e01ecb1aee7c7eaf5caee4a3ba9f59443",
+    revision="071b7b2d2e1504c89e1e5a811a3f82e1bfe3aedb",
     split="eval",
 )
 

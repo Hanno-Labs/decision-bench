@@ -22,7 +22,7 @@ values written by the run rather than the generic CLI defaults:
 ```bash
 decision-bench stage-result results/my-model ../decision-bench-results \
   --model-id org/model --model-revision COMMIT_SHA \
-  --dataset-revision b7c8107e01ecb1aee7c7eaf5caee4a3ba9f59443 \
+  --dataset-revision 071b7b2d2e1504c89e1e5a811a3f82e1bfe3aedb \
   --model-type decision-model \
   --adapter ADAPTER_ID \
   --probability-source PROBABILITY_SOURCE \
