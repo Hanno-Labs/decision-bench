@@ -18,6 +18,7 @@ from decision_bench.models import (
     GLiNER25DecideModel,
     HFDecisionModel,
     JevOpenRouterDecisionModel,
+    LevHFDecisionModel,
     MoJevHFDecisionModel,
     NanoJevHFDecisionModel,
     NimbleHFDecisionModel,
@@ -390,7 +391,9 @@ def run_public_hf_evaluation(
     output_dir: Path,
     *,
     model_dir: Path,
-    model_type: Literal["cua-s1", "gliner25", "mojev", "nanojev", "openjev", "system-one", "tev1"],
+    model_type: Literal[
+        "cua-s1", "gliner25", "lev", "mojev", "nanojev", "openjev", "system-one", "tev1"
+    ],
     model_repo: str,
     model_revision: str,
     base_revision: str | None,
@@ -410,6 +413,7 @@ def run_public_hf_evaluation(
     decision_model: (
         CuaS1HFDecisionModel
         | GLiNER25DecideModel
+        | LevHFDecisionModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
@@ -434,6 +438,13 @@ def run_public_hf_evaluation(
             model_dir=model_dir,
             model_repo=model_repo,
             model_revision=model_revision,
+        )
+    elif model_type == "lev":
+        decision_model = LevHFDecisionModel(
+            model_dir=model_dir,
+            model_repo=model_repo,
+            model_revision=model_revision,
+            expected_weights_sha256=expected_weights_sha256,
         )
     elif model_type == "mojev":
         decision_model = MoJevHFDecisionModel(
@@ -559,6 +570,7 @@ def _run_hf_batches(
         HFDecisionModel
         | CuaS1HFDecisionModel
         | GLiNER25DecideModel
+        | LevHFDecisionModel
         | NimbleHFDecisionModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
@@ -632,6 +644,7 @@ def _hf_batches(
         HFDecisionModel
         | CuaS1HFDecisionModel
         | GLiNER25DecideModel
+        | LevHFDecisionModel
         | NimbleHFDecisionModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel

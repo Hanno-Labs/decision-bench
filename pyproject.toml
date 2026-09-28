@@ -27,6 +27,9 @@ hf = [
 mojev = [
   "mojev[transformers] @ git+https://github.com/MoLeMo-Lab/mojev.git@a74d58cd19ec573e83e8e27f9fecd837b8d830fb",
 ]
+lev = [
+  "lev[serve] @ git+https://github.com/Abhinavexists/lev.git@cf104b69329302e4eac674a730c71f3511047db8#subdirectory=packages/lev",
+]
 gguf = [
   "fastapi>=0.116,<1",
   "llama-cpp-python>=0.3,<1",
