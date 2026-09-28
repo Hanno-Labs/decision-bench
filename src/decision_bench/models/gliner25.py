@@ -1,19 +1,17 @@
-"""Native classification readout for fastino/GLiNER2.5-Decide."""
+"""Native classification readout for pinned GLiNER2.5 checkpoints."""
 
 from __future__ import annotations
 
 import json
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from decision_bench.models.hf import HFDecisionResponse
 from decision_bench.schemas import DecisionExample, DecisionPrediction
 
-MODEL_ID = "fastino/GLiNER2.5-Decide"
-MODEL_REVISION = "0872ab149bd2f8a50ed5fc7ad8cfc3293e9a3bad"
-TOKENIZER_REVISION = MODEL_REVISION
 MAX_ENCODER_TOKENS = 512
 PROBABILITY_SOURCE = "raw_classification_logits_softmax"
 TASK_NAME = "decision"
@@ -21,12 +19,62 @@ MIN_CANDIDATES = 2
 MAX_CANDIDATES = 255
 
 
+@dataclass(frozen=True)
+class GLiNER25Checkpoint:
+    """A pinned GLiNER2.5 checkpoint and the readout metadata it implies.
+
+    ``architecture`` is the checkpoint's saved GLiNER2 architecture (``span`` or
+    ``boundary``). Both architectures share the ``gliner2.classification``
+    exclusive-classification readout, so a single adapter serves them.
+    """
+
+    model_id: str
+    revision: str
+    architecture: str
+    model_type: str
+    policy_version: str
+
+    @property
+    def tokenizer_revision(self) -> str:
+        """The tokenizer ships in the same repository revision as the weights."""
+        return self.revision
+
+
+CHECKPOINTS: tuple[GLiNER25Checkpoint, ...] = (
+    GLiNER25Checkpoint(
+        model_id="fastino/GLiNER2.5-Decide",
+        revision="0872ab149bd2f8a50ed5fc7ad8cfc3293e9a3bad",
+        architecture="span",
+        model_type="gliner25_decide_classifier",
+        policy_version="gliner25-decide-exact-encoder-v1",
+    ),
+    GLiNER25Checkpoint(
+        model_id="fastino/gliner2.5-small-v1",
+        revision="3ec6d3dd7e1e93a7cf9b46096fa47aeda61c711c",
+        architecture="boundary",
+        model_type="gliner25_boundary_classifier",
+        policy_version="gliner25-boundary-exact-encoder-v1",
+    ),
+)
+
+_CHECKPOINTS_BY_KEY = {
+    (checkpoint.model_id, checkpoint.revision): checkpoint for checkpoint in CHECKPOINTS
+}
+
+
 class UnsupportedGLiNER25Input(ValueError):
     """An example is outside the model's published input contract."""
 
 
-class GLiNER25DecideModel:
-    """Adapter for the GLiNER2.5-Decide classification checkpoint."""
+class GLiNER25ClassificationModel:
+    """Adapter for the GLiNER2.5 exclusive-classification readout.
+
+    ``fastino/GLiNER2.5-Decide`` is the span checkpoint and
+    ``fastino/gliner2.5-small-v1`` is the boundary checkpoint. Both load
+    through ``gliner2.classification.Classifier`` and score every candidate
+    label with the shared classification head, so one adapter serves them. The
+    checkpoint's architecture is recorded in the run metadata.
+    """
 
     def __init__(
         self,
@@ -38,22 +86,36 @@ class GLiNER25DecideModel:
         import torch
         from gliner2.classification import Classifier
 
-        if model_repo != MODEL_ID or model_revision != MODEL_REVISION:
-            raise ValueError("GLiNER2.5-Decide requires its pinned model and revision")
+        try:
+            checkpoint = _CHECKPOINTS_BY_KEY[(model_repo, model_revision)]
+        except KeyError:
+            raise ValueError(
+                f"unsupported GLiNER2.5 checkpoint {model_repo}@{model_revision}; "
+                f"pin one of {[(c.model_id, c.revision) for c in CHECKPOINTS]}"
+            ) from None
+        self.checkpoint = checkpoint
         self.model_dir = model_dir
         self.model_repo = model_repo
         self.model_revision = model_revision
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._classifier = Classifier.from_pretrained(str(model_dir))
         self._classifier.to(device=self.device).eval()
+        architecture = getattr(type(self._classifier.model), "architecture", None)
+        if architecture != checkpoint.architecture:
+            raise ValueError(
+                f"checkpoint {model_repo}@{model_revision} pins architecture "
+                f"{checkpoint.architecture!r} but the loaded model declares "
+                f"{architecture!r}"
+            )
 
     @property
     def metadata(self) -> dict[str, Any]:
         return {
-            "model_type": "gliner25_decide_classifier",
+            "model_type": self.checkpoint.model_type,
             "model": self.model_repo,
             "model_revision": self.model_revision,
-            "tokenizer_revision": TOKENIZER_REVISION,
+            "tokenizer_revision": self.checkpoint.tokenizer_revision,
+            "architecture": self.checkpoint.architecture,
             "probability_source": PROBABILITY_SOURCE,
             "max_encoder_tokens": MAX_ENCODER_TOKENS,
             "task_name": TASK_NAME,
@@ -170,7 +232,7 @@ class GLiNER25DecideModel:
                     input_contract={
                         "candidate_ids": candidate_ids,
                         "labels": labels,
-                        "policy_version": "gliner25-decide-exact-encoder-v1",
+                        "policy_version": self.checkpoint.policy_version,
                         "original_input_tokens": token_count,
                         "final_input_tokens": token_count,
                         "max_input_tokens": MAX_ENCODER_TOKENS,
