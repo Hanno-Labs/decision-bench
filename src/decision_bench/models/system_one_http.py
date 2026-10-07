@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import os
 import time
 from typing import Any
 
@@ -35,7 +37,12 @@ class UnsupportedSystemOneInput(ValueError):
 
 
 class SystemOneHTTPDecisionModel:
-    """Run rows through a local, pinned Jev-compatible SystemOne endpoint."""
+    """Run rows through a pinned Jev-compatible SystemOne endpoint.
+
+    The endpoint is normally a local serving bundle. A hosted service that requires a
+    bearer key is supported through ``api_key_env``: the key is read from that environment
+    variable, sent only over HTTPS or to a loopback address, and never recorded.
+    """
 
     def __init__(
         self,
@@ -53,11 +60,20 @@ class SystemOneHTTPDecisionModel:
         max_retries: int = 4,
         adapter_name: str = XOR_ADAPTER_NAME,
         probability_source: str = XOR_PROBABILITY_SOURCE,
+        api_key_env: str | None = None,
     ) -> None:
         if max_candidates < 2:
             raise ValueError("max_candidates must be at least two")
         if max_rendered_state_characters < 1 or max_request_bytes < 1:
             raise ValueError("serving input limits must be positive")
+        headers: dict[str, str] = {}
+        if api_key_env is not None:
+            api_key = os.environ.get(api_key_env, "").strip()
+            if not api_key:
+                raise RuntimeError(f"{api_key_env} is required for this endpoint")
+            if not _is_https_or_loopback(base_url):
+                raise ValueError("an API key is sent only over HTTPS or to a loopback endpoint")
+            headers["Authorization"] = f"Bearer {api_key}"
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.model_repo = model_repo
@@ -70,7 +86,10 @@ class SystemOneHTTPDecisionModel:
         self.max_retries = max_retries
         self.adapter_name = adapter_name
         self.probability_source = probability_source
-        self._client = httpx.Client(base_url=self.base_url, timeout=timeout_seconds)
+        self.endpoint_authentication = "bearer" if headers else "none"
+        self._client = httpx.Client(
+            base_url=self.base_url, timeout=timeout_seconds, headers=headers
+        )
 
     @property
     def metadata(self) -> dict[str, Any]:
@@ -84,6 +103,7 @@ class SystemOneHTTPDecisionModel:
             "native_contract_version": SYSTEM_ONE_HTTP_CONTRACT_VERSION,
             "endpoint_base_url": self.base_url,
             "endpoint_path": "/v1/systemone",
+            "endpoint_authentication": self.endpoint_authentication,
             "max_candidates": self.max_candidates,
             "max_rendered_state_characters": self.max_rendered_state_characters,
             "max_request_bytes": self.max_request_bytes,
@@ -189,6 +209,22 @@ class SystemOneHTTPDecisionModel:
 
     def __exit__(self, *_: object) -> None:
         self.close()
+
+
+def _is_https_or_loopback(base_url: str) -> bool:
+    """Allow a bearer key over HTTPS, or over plain HTTP only to this machine."""
+
+    url = httpx.URL(base_url)
+    if url.scheme == "https":
+        return True
+    if url.scheme != "http":
+        return False
+    if url.host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(url.host).is_loopback
+    except ValueError:
+        return False
 
 
 def _render_state(state: Any) -> str:

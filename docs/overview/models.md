@@ -57,6 +57,14 @@ runner sends the benchmark's Noul, Choice, and Score requests to `/v1/systemone`
 than 26 candidates, rendered state over 4 MiB, or serialized requests over 8 MiB remain explicit
 unsupported rows; the adapter never truncates them.
 
+`run-system-one-http` can also evaluate a hosted Jev-compatible SystemOne service that requires a
+key. Pass `--api-key-env NAME` to send the key held in that environment variable as a bearer
+token. The key is sent only over HTTPS or to a loopback address and is never written to run
+artifacts; the run metadata records `endpoint_authentication: bearer`. Hosted services are a
+secondary path: record the service route in `--base-url` and `--inference-image`, use a dated
+service snapshot as `--model-revision`, and pass `--serving-bundle-sha256 none`, since no serving
+bundle is pinned.
+
 The imajev runner (`jobs/run_imajev_eval.sh`) pins adapter revision
 `c9e5f132465da85d31735ec502d5557982671a7d` of `mohit67890/imajev-4b` (LoRA weights SHA-256
 `88c2c44361e0c469352495abcfee789ff73a4deae0811168d9402cfc2b6e749c`; every file is checked against the

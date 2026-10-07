@@ -404,6 +404,15 @@ def run_system_one_http(
     probability_source: Annotated[str, typer.Option()] = (
         "forward_reverse_option_letter_logprobs_calibrated_v1"
     ),
+    api_key_env: Annotated[
+        str | None,
+        typer.Option(
+            help=(
+                "Environment variable holding a bearer key for a hosted endpoint; "
+                "sent only over HTTPS or to loopback and never recorded."
+            )
+        ),
+    ] = None,
     smoke: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Run a pinned Jev-compatible SystemOne HTTP endpoint."""
@@ -428,6 +437,7 @@ def run_system_one_http(
         max_request_bytes=max_request_bytes,
         adapter_name=adapter_name,
         probability_source=probability_source,
+        api_key_env=api_key_env,
         benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))
