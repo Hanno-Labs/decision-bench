@@ -8,6 +8,11 @@ DecisionBench evaluates three output primitives:
 | Candidate selection | Probability over runtime-defined candidates |
 | Ordinal scoring | Probability over ordered levels plus expected score |
 
+All evaluation commands execute through Inspect AI. Each benchmark row is an Inspect sample;
+the native model adapter supplies its candidate probability vector through a custom model provider.
+HF adapters retain their compatible-row batching, and hosted adapters retain their existing request
+and retry contracts. Gold labels and source annotations are excluded from model-visible inputs.
+
 ## Evaluate a Hugging Face model
 
 The normal contribution path starts with a model published on the Hugging Face Hub at an immutable
@@ -57,8 +62,21 @@ decision-bench run-public-hf task_specs/decisionbench-dev.toml \
   --smoke
 ```
 
-Every run writes `raw.jsonl`, `summary.json`, and `manifest.json` to its output directory. After a
-full run, follow [Submit Results](../../contributing/submitting_results.md) to validate the local run,
+Every run writes `raw.jsonl`, `summary.json`, `manifest.json`, and Inspect `.eval` logs under `inspect/`
+to its output directory. The manifest hashes the Inspect logs as well as the canonical raw and
+summary files. View the transcript, native requests/responses, sample scores, and aggregate metrics:
+
+```bash
+inspect view --log-dir results/my-model/inspect
+```
+
+Successful rows are skipped on resume; failed rows are retried. Each resumed invocation produces
+a separate Inspect log covering its pending rows. The canonical summary combines the latest raw
+record for each row across invocations. Historical raw rows retain their original provenance;
+`inspect_rows` and `legacy_rows` show whether every final record was actually executed by Inspect.
+Using Inspect does not itself grant a Hugging Face verified badge.
+
+After a full run, follow [Submit Results](../../contributing/submitting_results.md) to validate the local run,
 stage its compact result record, and open a result pull request.
 
 ## Opt into compact rows

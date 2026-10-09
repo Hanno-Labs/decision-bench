@@ -117,7 +117,7 @@ def run_openrouter_top_logprobs(
     resolved_root = project_root if project_root is not None else Path.cwd()
     benchmark = _load_run_benchmark(spec_path, resolved_root, compact_fields)
     all_examples = list(benchmark.examples)
-    examples = [example for example in all_examples if len(example.candidates) <= top_logprobs]
+    examples = all_examples
     if smoke:
         examples = select_smoke_examples(examples)
     summary = run_openrouter_top_logprobs_evaluation(
@@ -127,7 +127,7 @@ def run_openrouter_top_logprobs(
         seed=seed,
         concurrency=concurrency,
         top_logprobs=top_logprobs,
-        benchmark_rows=len(all_examples),
+        benchmark_rows=len(examples),
         benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))

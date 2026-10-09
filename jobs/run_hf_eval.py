@@ -5,6 +5,7 @@
 #   "accelerate==1.15.0",
 #   "datasets>=4.0,<5",
 #   "httpx[http2]>=0.28,<1",
+#   "inspect_ai==0.3.260",
 #   "peft==0.21.0",
 #   "pillow==12.3.0",
 #   "pyarrow>=21,<22",
