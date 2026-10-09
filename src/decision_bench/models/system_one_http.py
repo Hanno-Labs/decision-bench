@@ -23,12 +23,9 @@ XOR_ADAPTER_NAME = "xor-serving-systemone-v1"
 XOR_PROBABILITY_SOURCE = "forward_reverse_option_letter_logprobs_calibrated_v1"
 XOR_MODEL_REPO = "juspay/xor"
 XOR_MODEL_REVISION = "679decd4c669e5c37f4ac29dbd9957997424c876"
-XOR_SERVING_BUNDLE_SHA256 = (
-    "0a63473caaa3c6bfc8bc15fbab62f0a9a84c7ebf4ab6e06d0699891b7be6159b"
-)
+XOR_SERVING_BUNDLE_SHA256 = "0a63473caaa3c6bfc8bc15fbab62f0a9a84c7ebf4ab6e06d0699891b7be6159b"
 XOR_SGLANG_IMAGE = (
-    "lmsysorg/sglang@sha256:"
-    "6bcaa47db52f78ce0d67863b8b2431221b79bc23204a80cad757fa819d00e921"
+    "lmsysorg/sglang@sha256:6bcaa47db52f78ce0d67863b8b2431221b79bc23204a80cad757fa819d00e921"
 )
 
 
@@ -57,7 +54,7 @@ class SystemOneHTTPDecisionModel:
         max_rendered_state_characters: int = 4 * 1024 * 1024,
         max_request_bytes: int = 8 * 1024 * 1024,
         timeout_seconds: float = 180.0,
-        max_retries: int = 4,
+        max_retries: int | None = None,
         adapter_name: str = XOR_ADAPTER_NAME,
         probability_source: str = XOR_PROBABILITY_SOURCE,
         api_key_env: str | None = None,
@@ -83,7 +80,11 @@ class SystemOneHTTPDecisionModel:
         self.max_candidates = max_candidates
         self.max_rendered_state_characters = max_rendered_state_characters
         self.max_request_bytes = max_request_bytes
-        self.max_retries = max_retries
+        # A hosted request can already have been billed when its response is
+        # lost or malformed. Do not replay it without an idempotency contract.
+        self.max_retries = (
+            (0 if api_key_env is not None else 4) if max_retries is None else max_retries
+        )
         self.adapter_name = adapter_name
         self.probability_source = probability_source
         self.endpoint_authentication = "bearer" if headers else "none"
@@ -104,6 +105,7 @@ class SystemOneHTTPDecisionModel:
             "endpoint_base_url": self.base_url,
             "endpoint_path": "/v1/systemone",
             "endpoint_authentication": self.endpoint_authentication,
+            "max_retries": self.max_retries,
             "max_candidates": self.max_candidates,
             "max_rendered_state_characters": self.max_rendered_state_characters,
             "max_request_bytes": self.max_request_bytes,
@@ -175,9 +177,7 @@ class SystemOneHTTPDecisionModel:
                         "original_characters": rendered_state_characters,
                         "model_characters": rendered_state_characters,
                         "rendered_state_characters": rendered_state_characters,
-                        "max_rendered_state_characters": (
-                            self.max_rendered_state_characters
-                        ),
+                        "max_rendered_state_characters": (self.max_rendered_state_characters),
                         "serialized_request_bytes": request_bytes,
                         "max_request_bytes": self.max_request_bytes,
                     },
@@ -236,9 +236,7 @@ def _render_state(state: Any) -> str:
     if isinstance(messages, list) and all(
         isinstance(message, dict) and "role" in message for message in messages
     ):
-        return "\n".join(
-            f"{message['role'].upper()}: {message['content']}" for message in messages
-        )
+        return "\n".join(f"{message['role'].upper()}: {message['content']}" for message in messages)
     return json.dumps(state, indent=2)
 
 

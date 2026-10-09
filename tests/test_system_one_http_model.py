@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import httpx
 import pytest
@@ -121,6 +122,33 @@ def test_local_endpoint_sends_no_credentials_by_default() -> None:
         metadata = model.metadata
     assert "authorization" not in seen[0].headers
     assert metadata["endpoint_authentication"] == "none"
+    assert metadata["max_retries"] == 4
+
+
+@pytest.mark.parametrize("failure", ["timeout", "http_503", "malformed"])
+def test_hosted_endpoint_does_not_repeat_an_ambiguous_billable_request(
+    monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    monkeypatch.setenv("SYSTEM_ONE_TEST_KEY", "test-only-secret")
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if failure == "timeout":
+            raise httpx.ReadTimeout("response lost", request=request)
+        if failure == "http_503":
+            return httpx.Response(503, json={"error": "unavailable"})
+        return httpx.Response(200, json={})
+
+    with _model(base_url="https://example.com", api_key_env="SYSTEM_ONE_TEST_KEY") as model:
+        model._client.close()
+        model._client = httpx.Client(
+            base_url=model.base_url, transport=httpx.MockTransport(handler)
+        )
+        with pytest.raises((httpx.HTTPError, KeyError)):
+            model.predict(_example(2))
+        assert model.metadata["max_retries"] == 0
+    assert len(seen) == 1
 
 
 def test_missing_key_fails_before_any_request(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -149,3 +177,47 @@ def test_key_is_sent_only_over_https_or_to_loopback(
     else:
         with pytest.raises(ValueError, match="HTTPS"):
             _model(base_url=base_url, api_key_env="SYSTEM_ONE_TEST_KEY")
+
+
+def test_hosted_key_reaches_endpoint_but_not_inspect_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.log import read_eval_log
+
+    from decision_bench.evaluate import run_system_one_http_evaluation
+
+    secret = "fixture-key-must-never-appear-in-artifacts"
+    monkeypatch.setenv("SYSTEM_ONE_TEST_KEY", secret)
+    seen: list[httpx.Request] = []
+
+    def send(_self: httpx.HTTPTransport, request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "answers": {"decision": {"type": "choice", "probabilities": {"0": 0.8, "1": 0.2}}}
+            },
+        )
+
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", send)
+    summary = run_system_one_http_evaluation(
+        [_example(2)],
+        tmp_path,
+        base_url="https://example.com",
+        model="model",
+        model_repo="org/model",
+        model_revision="hosted-api-snapshot-2026-10-09",
+        serving_bundle_sha256="none",
+        inference_image="hosted service",
+        concurrency=1,
+        api_key_env="SYSTEM_ONE_TEST_KEY",
+    )
+    assert len(seen) == 1
+    assert seen[0].headers["authorization"] == f"Bearer {secret}"
+    assert summary["inspect_provenance_complete"]
+    assert summary["inspect_rows"] == 1
+    for name in ("raw.jsonl", "summary.json", "manifest.json"):
+        assert secret not in (tmp_path / name).read_text(encoding="utf-8")
+    [log_path] = (tmp_path / "inspect").glob("*.eval")
+    log = read_eval_log(str(log_path))
+    assert secret not in log.model_dump_json()

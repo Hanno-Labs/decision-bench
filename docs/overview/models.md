@@ -60,7 +60,9 @@ unsupported rows; the adapter never truncates them.
 `run-system-one-http` can also evaluate a hosted Jev-compatible SystemOne service that requires a
 key. Pass `--api-key-env NAME` to send the key held in that environment variable as a bearer
 token. The key is sent only over HTTPS or to a loopback address and is never written to run
-artifacts; the run metadata records `endpoint_authentication: bearer`. Hosted services are a
+artifacts; the run metadata records `endpoint_authentication: bearer` and `max_retries: 0`.
+Authenticated requests are not retried automatically because a failed response may already
+have been billed. Hosted services are a
 secondary path: record the service route in `--base-url` and `--inference-image`, use a dated
 service snapshot as `--model-revision`, and pass `--serving-bundle-sha256 none`, since no serving
 bundle is pinned.
