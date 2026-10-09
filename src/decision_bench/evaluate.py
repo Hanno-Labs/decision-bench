@@ -147,6 +147,7 @@ def run_system_one_http_evaluation(
     max_request_bytes: int = 8 * 1024 * 1024,
     adapter_name: str = XOR_ADAPTER_NAME,
     probability_source: str = XOR_PROBABILITY_SOURCE,
+    api_key_env: str | None = None,
     benchmark_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate a pinned Jev-compatible SystemOne endpoint without truncation."""
@@ -163,6 +164,7 @@ def run_system_one_http_evaluation(
         max_request_bytes=max_request_bytes,
         adapter_name=adapter_name,
         probability_source=probability_source,
+        api_key_env=api_key_env,
     ) as decision_model:
         summary = _run_evaluation(
             examples,
