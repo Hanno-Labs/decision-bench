@@ -10,7 +10,12 @@ from inspect_ai.event import ModelEvent
 from inspect_ai.log import EvalLog, read_eval_log
 
 from decision_bench.evaluate import _run_evaluation, _run_hf_batches, _successful_record
-from decision_bench.inspect_runtime import UnsupportedCandidateCount, decision_sample, run_inspect
+from decision_bench.inspect_runtime import (
+    UnsupportedCandidateCount,
+    candidate_target,
+    decision_sample,
+    run_inspect,
+)
 from decision_bench.models.hf import HFDecisionResponse
 from decision_bench.models.openrouter_top_logprobs import OpenRouterTopLogprobsDecisionModel
 from decision_bench.results import ModelMetadata, ResultCache
@@ -86,6 +91,28 @@ def metrics(log: EvalLog) -> dict[str, float]:
     }
 
 
+@pytest.mark.parametrize("gold,other", [("A-B", "ab"), ("the", "THE"), ("one!", "one")])
+def test_exact_match_preserves_distinct_candidate_ids(
+    tmp_path: Path, gold: str, other: str
+) -> None:
+    row = example("normalization").model_copy(
+        update={
+            "candidates": [Candidate(id=gold, label="Gold"), Candidate(id=other, label="Other")],
+            "gold_candidate_id": gold,
+        }
+    )
+    summary = _run_evaluation(
+        [row], tmp_path, decision_model=NativeAdapter(), concurrency=1, metadata={}
+    )
+    [log] = logs(tmp_path)
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.scores is not None
+    assert sample.scores["exact"].value == "I"
+    assert sample.output.completion == candidate_target(other)
+    assert summary["benchmark_accuracy_counting_unsupported_as_incorrect"] == 0.0
+
+
 @pytest.mark.parametrize("count,ordinal", [(2, False), (4, True), (255, False)])
 def test_inspect_native_probability_and_metric_parity(
     tmp_path: Path,
@@ -118,9 +145,15 @@ def test_inspect_native_probability_and_metric_parity(
     assert "gold_candidate_id" not in payload
     assert "gold_probabilities" not in payload
     assert "source" not in payload
+    assert sample.output.completion == candidate_target("id-1")
+    assert sample.output.metadata is not None
     assert (
-        json.loads(sample.output.completion)["probabilities"] == record["scored"]["probabilities"]
+        sample.output.metadata["raw_record"]["scored"]["probabilities"]
+        == record["scored"]["probabilities"]
     )
+    assert sample.scores is not None and set(sample.scores) == {"exact"}
+    assert log.plan is not None
+    assert [step.solver for step in log.plan.steps] == ["generate"]
     assert any(isinstance(event, ModelEvent) and event.call is not None for event in sample.events)
     values = metrics(log)
     assert values["accuracy"] == summary["benchmark_accuracy_counting_unsupported_as_incorrect"]
@@ -387,7 +420,8 @@ def test_system_one_http_validation_rows_remain_inspect_samples(
 
     class EndpointAdapter(NativeAdapter):
         metadata: ClassVar[dict[str, str]] = {
-            "model": "fixture", "eligibility_definition": "fixture input limits"
+            "model": "fixture",
+            "eligibility_definition": "fixture input limits",
         }
 
         def __enter__(self) -> "EndpointAdapter":

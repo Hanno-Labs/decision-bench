@@ -12,6 +12,9 @@ All evaluation commands execute through Inspect AI. Each benchmark row is an Ins
 the native model adapter supplies its candidate probability vector through a custom model provider.
 HF adapters retain their compatible-row batching, and hosted adapters retain their existing request
 and retry contracts. Gold labels and source annotations are excluded from model-visible inputs.
+The task uses Inspect's built-in `generate` and `exact` components. Candidate IDs are reversibly
+encoded as `dbid` plus lowercase UTF-8 hex so exact-match normalization cannot merge distinct IDs.
+The native request, full probability vector, original IDs, NLL, and ECE remain in the run artifacts.
 
 ## Evaluate a Hugging Face model
 
