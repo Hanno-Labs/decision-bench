@@ -217,6 +217,13 @@ class ResultCache:
         for name, path in (("summary.json", summary_path), ("raw.jsonl", raw_path)):
             if expected_files.get(name) != _sha256_file(path):
                 raise ValueError(f"manifest hash mismatch for {name}")
+        for name in summary.get("inspect_logs", []):
+            relative = Path(name)
+            if relative.parts[:1] != ("inspect",) or ".." in relative.parts:
+                raise ValueError("Inspect artifact must be inside the run's inspect directory")
+            path = run_path / relative
+            if not path.is_file() or expected_files.get(name) != _sha256_file(path):
+                raise ValueError(f"manifest hash mismatch for {name}")
 
         requested_rows = int(summary["requested_rows"])
         successful_rows = int(summary["successful_rows"])

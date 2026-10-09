@@ -4,6 +4,7 @@
 # dependencies = [
 #   "datasets>=4.0,<5",
 #   "httpx[http2]>=0.28,<1",
+#   "inspect_ai==0.3.260",
 #   "pyarrow>=21,<22",
 #   "pydantic>=2.11,<3",
 #   "typer>=0.16,<1",

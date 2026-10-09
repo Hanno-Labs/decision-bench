@@ -7,12 +7,11 @@ import json
 import os
 import shutil
 import tempfile
-import time
 from collections import defaultdict
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Literal
 
+from decision_bench.inspect_runtime import UnsupportedCandidateCount, audited_records, run_inspect
 from decision_bench.models import (
     CuaS1HFDecisionModel,
     GLiNER25DecideModel,
@@ -165,70 +164,14 @@ def run_system_one_http_evaluation(
         adapter_name=adapter_name,
         probability_source=probability_source,
     ) as decision_model:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        raw_path = output_dir / "raw.jsonl"
-        recorded = _recorded_row_ids(raw_path)
-        eligible: list[DecisionExample] = []
-        ineligible: list[DecisionExample] = []
-        with raw_path.open("a") as raw_handle:
-            for example in examples:
-                try:
-                    decision_model.validate_example(example)
-                except Exception as error:
-                    ineligible.append(example)
-                    if example.row_id in recorded:
-                        continue
-                    raw_handle.write(
-                        json.dumps(
-                            {
-                                "status": "error",
-                                "row_id": example.row_id,
-                                "task_name": example.task_name,
-                                "primitive": example.primitive.value,
-                                "family": example.family,
-                                "domain": example.domain,
-                                "candidate_count": len(example.candidates),
-                                "example": example.model_dump(mode="json"),
-                                "error_type": type(error).__name__,
-                                "error": str(error),
-                            },
-                            ensure_ascii=False,
-                            sort_keys=True,
-                        )
-                        + "\n"
-                    )
-                else:
-                    eligible.append(example)
-            raw_handle.flush()
-            os.fsync(raw_handle.fileno())
-
         summary = _run_evaluation(
-            eligible,
+            examples,
             output_dir,
             decision_model=decision_model,
             concurrency=concurrency,
             metadata={**decision_model.metadata, **(benchmark_metadata or {})},
         )
-        successful_rows = int(summary["successful_rows"])
-        correct_rows = 0
-        if successful_rows:
-            eligible_accuracy = float(summary["metrics"]["overall"]["accuracy"])
-            correct_rows = round(eligible_accuracy * successful_rows)
-        summary.update(
-            {
-                "requested_rows": len(examples),
-                "eligible_rows": len(eligible),
-                "ineligible_rows": len(ineligible),
-                "coverage": successful_rows / len(examples),
-                "benchmark_accuracy_counting_unsupported_as_incorrect": (
-                    correct_rows / len(examples)
-                ),
-                "ineligible_definition": decision_model.metadata[
-                    "eligibility_definition"
-                ],
-                "raw_sha256": _sha256_file(raw_path),
-            }
-        )
+        summary["ineligible_definition"] = decision_model.metadata["eligibility_definition"]
         _write_run_artifacts(output_dir, summary)
         return summary
 
@@ -244,7 +187,10 @@ def run_openrouter_top_logprobs_evaluation(
     benchmark_rows: int | None = None,
     benchmark_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Evaluate eligible rows from native one-token OpenRouter logprobs."""
+    """Evaluate the full corpus, recording unsupported rows as explicit misses."""
+
+    if benchmark_rows is not None and benchmark_rows != len(examples):
+        raise ValueError("pass all benchmark rows; the runner records top-logprobs eligibility")
 
     with OpenRouterTopLogprobsDecisionModel(
         model=model,
@@ -264,10 +210,8 @@ def run_openrouter_top_logprobs_evaluation(
                 "probability_source": "native_top_logprobs_conditional",
                 "top_logprobs": top_logprobs,
                 "benchmark_rows": benchmark_rows if benchmark_rows is not None else len(examples),
-                "eligible_rows": len(examples),
-                "ineligible_rows": (benchmark_rows - len(examples))
-                if benchmark_rows is not None
-                else 0,
+                "eligible_rows": sum(len(row.candidates) <= top_logprobs for row in examples),
+                "ineligible_rows": sum(len(row.candidates) > top_logprobs for row in examples),
                 "eligibility_definition": (
                     f"candidate_count <= {top_logprobs}; complete candidate token coverage required"
                 ),
@@ -328,61 +272,20 @@ def run_nimble_hf_evaluation(
         expected_adapter_sha256=expected_adapter_sha256,
         attn_implementation=attn_implementation,
     )
-    output_dir.mkdir(parents=True, exist_ok=True)
-    raw_path = output_dir / "raw.jsonl"
-    completed = _recorded_row_ids(raw_path)
-    eligible = [example for example in examples if len(example.candidates) <= 26]
-    unsupported = [example for example in examples if len(example.candidates) > 26]
-    with raw_path.open("a") as raw_handle:
-        for example in unsupported:
-            if example.row_id in completed:
-                continue
-            raw_handle.write(
-                json.dumps(
-                    {
-                        "status": "error",
-                        "row_id": example.row_id,
-                        "primitive": example.primitive.value,
-                        "family": example.family,
-                        "domain": example.domain,
-                        "candidate_count": len(example.candidates),
-                        "example": example.model_dump(mode="json"),
-                        "error_type": "UnsupportedCandidateCount",
-                        "error": "Bespoke-Nimble-9B supports at most 26 choices",
-                    },
-                    ensure_ascii=False,
-                    sort_keys=True,
-                )
-                + "\n"
-            )
-        raw_handle.flush()
-        os.fsync(raw_handle.fileno())
-
-    summary = _run_hf_batches(
-        eligible,
+    return _run_hf_batches(
+        examples,
         output_dir,
         decision_model=decision_model,
         batch_size=batch_size,
         max_prompt_characters_per_batch=max_prompt_characters_per_batch,
-        metadata={**decision_model.metadata, **(benchmark_metadata or {})},
-    )
-    successful_rows = int(summary["successful_rows"])
-    eligible_accuracy = float(summary["metrics"]["overall"]["accuracy"])
-    correct_rows = round(eligible_accuracy * successful_rows)
-    summary.update(
-        {
-            "requested_rows": len(examples),
-            "eligible_rows": len(eligible),
-            "ineligible_rows": len(unsupported),
-            "coverage": successful_rows / len(examples),
-            "benchmark_accuracy_counting_unsupported_as_incorrect": correct_rows
-            / len(examples),
+        metadata={
+            **decision_model.metadata,
+            **(benchmark_metadata or {}),
+            "eligible_rows": sum(len(example.candidates) <= 26 for example in examples),
+            "ineligible_rows": sum(len(example.candidates) > 26 for example in examples),
             "ineligible_definition": "candidate_count > 26",
-            "raw_sha256": _sha256_file(raw_path),
-        }
+        },
     )
-    _write_run_artifacts(output_dir, summary)
-    return summary
 
 
 def run_public_hf_evaluation(
@@ -475,46 +378,8 @@ def run_public_hf_evaluation(
             attn_implementation=attn_implementation,
         )
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    raw_path = output_dir / "raw.jsonl"
-    recorded = _recorded_row_ids(raw_path)
-    eligible: list[DecisionExample] = []
-    with raw_path.open("a") as raw_handle:
-        for example in examples:
-            if example.row_id in recorded:
-                continue
-            try:
-                decision_model.validate_example(example)
-            except Exception as error:
-                raw_handle.write(
-                    json.dumps(
-                        {
-                            "status": "error",
-                            "row_id": example.row_id,
-                            "primitive": example.primitive.value,
-                            "family": example.family,
-                            "domain": example.domain,
-                            "candidate_count": len(example.candidates),
-                            "example": example.model_dump(mode="json"),
-                            "error_type": type(error).__name__,
-                            "error": str(error),
-                        },
-                        ensure_ascii=False,
-                        sort_keys=True,
-                    )
-                    + "\n"
-                )
-            else:
-                eligible.append(example)
-        raw_handle.flush()
-        os.fsync(raw_handle.fileno())
-    last_checkpoint_at = 0.0
-    if checkpoint_dir is not None:
-        _write_raw_checkpoint(raw_path, checkpoint_dir)
-        last_checkpoint_at = time.monotonic()
-
     summary = _run_hf_batches(
-        eligible,
+        examples,
         output_dir,
         decision_model=decision_model,
         batch_size=batch_size,
@@ -522,7 +387,6 @@ def run_public_hf_evaluation(
         metadata={**decision_model.metadata, **(benchmark_metadata or {})},
         checkpoint_dir=checkpoint_dir,
         checkpoint_interval_seconds=checkpoint_interval_seconds,
-        last_checkpoint_at=last_checkpoint_at,
     )
     successful_rows = int(summary["successful_rows"])
     if successful_rows:
@@ -544,7 +408,7 @@ def run_public_hf_evaluation(
             "coverage": successful_rows / len(examples),
             "benchmark_accuracy_counting_unsupported_as_incorrect": correct_rows
             / len(examples),
-            "raw_sha256": _sha256_file(raw_path),
+            "raw_sha256": _sha256_file(output_dir / "raw.jsonl"),
         }
     )
     _write_run_artifacts(output_dir, summary)
@@ -571,58 +435,22 @@ def _run_hf_batches(
     metadata: dict[str, Any],
     checkpoint_dir: Path | None = None,
     checkpoint_interval_seconds: int = 120,
-    last_checkpoint_at: float = 0.0,
 ) -> dict[str, Any]:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    raw_path = output_dir / "raw.jsonl"
-    completed = _completed_row_ids(raw_path)
-    pending = [example for example in examples if example.row_id not in completed]
-    batches = _hf_batches(
-        pending,
+    return _run_evaluation(
+        examples,
+        output_dir,
         decision_model=decision_model,
-        batch_size=batch_size,
-        max_prompt_characters_per_batch=max_prompt_characters_per_batch,
-    )
-    started = time.time()
-    completed_count = 0
-    with raw_path.open("a") as raw_handle:
-        for batch in batches:
-            results = decision_model.predict_batch(batch)
-            records = [
-                _successful_record(example, result)
-                for example, result in zip(batch, results, strict=True)
-            ]
-            for record in records:
-                raw_handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
-            raw_handle.flush()
-            os.fsync(raw_handle.fileno())
-            now = time.monotonic()
-            if checkpoint_dir is not None and (
-                last_checkpoint_at == 0.0
-                or now - last_checkpoint_at >= checkpoint_interval_seconds
-            ):
-                _write_raw_checkpoint(raw_path, checkpoint_dir)
-                last_checkpoint_at = now
-            completed_count += len(batch)
-            elapsed = max(time.time() - started, 1e-9)
-            print(
-                "DECISION_BENCH_PROGRESS "
-                f"completed={completed_count} total={len(pending)} "
-                f"rows_per_second={completed_count / elapsed:.3f}",
-                flush=True,
-            )
-    summary = summarize_raw(raw_path)
-    summary.update(metadata)
-    summary.update(
-        {
-            "requested_rows": len(examples),
-            "raw_sha256": _sha256_file(raw_path),
+        concurrency=max(1, batch_size),
+        metadata={
+            **metadata,
             "batch_size": batch_size,
             "max_prompt_characters_per_batch": max_prompt_characters_per_batch,
-        }
+        },
+        batch_size=batch_size,
+        max_prompt_characters_per_batch=max_prompt_characters_per_batch,
+        checkpoint_dir=checkpoint_dir,
+        checkpoint_interval_seconds=checkpoint_interval_seconds,
     )
-    _write_run_artifacts(output_dir, summary)
-    return summary
 
 
 def _hf_batches(
@@ -699,72 +527,139 @@ def _run_evaluation(
     examples: list[DecisionExample],
     output_dir: Path,
     *,
-    decision_model: (
-        OpenRouterDecisionModel
-        | JevOpenRouterDecisionModel
-        | OpenRouterTopLogprobsDecisionModel
-        | SystemOneHTTPDecisionModel
-    ),
+    decision_model: Any,
     concurrency: int,
     metadata: dict[str, Any],
+    batch_size: int | None = None,
+    max_prompt_characters_per_batch: int | None = None,
+    checkpoint_dir: Path | None = None,
+    checkpoint_interval_seconds: int = 120,
 ) -> dict[str, Any]:
+    if len({example.row_id for example in examples}) != len(examples):
+        raise ValueError("benchmark row IDs must be unique")
+    if not examples:
+        raise ValueError("benchmark must contain at least one row")
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_path = output_dir / "raw.jsonl"
+    by_id = {example.row_id: example for example in examples}
+    if raw_path.exists():
+        with raw_path.open() as handle:
+            for line in handle:
+                record = json.loads(line)
+                example = by_id.get(str(record["row_id"]))
+                if example is None or record.get("example") != example.model_dump(mode="json"):
+                    raise ValueError("resume directory contains a different benchmark input")
+    summary_path = output_dir / "summary.json"
+    if summary_path.exists():
+        previous = json.loads(summary_path.read_text())
+        for key, value in metadata.items():
+            if key in {"batch_size", "max_prompt_characters_per_batch"}:
+                continue
+            if key in previous and previous[key] != value:
+                raise ValueError(f"resume metadata changed: {key}")
+    raw_path.touch(exist_ok=True)
+    if checkpoint_dir is not None:
+        if checkpoint_interval_seconds < 1:
+            raise ValueError("checkpoint_interval_seconds must be positive")
+        _write_raw_checkpoint(raw_path, checkpoint_dir)
     completed = _completed_row_ids(raw_path)
-    pending = [example for example in examples if example.row_id not in completed]
-    started = time.time()
-    progress_every = max(10, min(100, max(len(pending) // 100, 1)))
-    with ThreadPoolExecutor(max_workers=concurrency) as executor:
-        future_examples: dict[Future[dict[str, Any]], DecisionExample] = {
-            executor.submit(_evaluate_one, decision_model, example): example for example in pending
+    audited = audited_records(output_dir / "inspect")
+    if raw_path.exists():
+        latest = {
+            str(record["row_id"]): record
+            for record in (json.loads(line) for line in raw_path.read_text().splitlines())
         }
-        with raw_path.open("a") as raw_handle:
-            for completed_count, future in enumerate(as_completed(future_examples), start=1):
-                example = future_examples[future]
-                try:
-                    record = future.result()
-                except Exception as error:
-                    record = {
-                        "status": "error",
-                        "row_id": example.row_id,
-                        "task_name": example.task_name,
-                        "primitive": example.primitive.value,
-                        "family": example.family,
-                        "domain": example.domain,
-                        "candidate_count": len(example.candidates),
-                        "example": example.model_dump(mode="json"),
-                        "error_type": type(error).__name__,
-                        "error": str(error),
-                    }
-                raw_handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
-                raw_handle.flush()
-                if completed_count % progress_every == 0 or completed_count == len(pending):
-                    os.fsync(raw_handle.fileno())
-                    elapsed = max(time.time() - started, 1e-9)
-                    print(
-                        "DECISION_BENCH_PROGRESS "
-                        f"completed={completed_count} total={len(pending)} "
-                        f"rows_per_second={completed_count / elapsed:.3f}",
-                        flush=True,
-                    )
+        completed.difference_update(
+            row_id
+            for row_id, record in latest.items()
+            if record.get("evaluation_framework") == "inspect-ai" and audited.get(row_id) != record
+        )
+    pending = [example for example in examples if example.row_id not in completed]
+    validation_errors: dict[str, Exception] = {}
+    for example in examples:
+        try:
+            if isinstance(decision_model, NimbleHFDecisionModel) and len(example.candidates) > 26:
+                raise UnsupportedCandidateCount("Bespoke-Nimble-9B supports at most 26 choices")
+            if (
+                isinstance(decision_model, OpenRouterTopLogprobsDecisionModel)
+                and len(example.candidates) > decision_model.top_logprobs
+            ):
+                raise UnsupportedCandidateCount(
+                    f"top-logprobs supports at most {decision_model.top_logprobs} choices"
+                )
+            validate = getattr(decision_model, "validate_example", None)
+            if validate is not None:
+                validate(example)
+        except Exception as error:
+            validation_errors[example.row_id] = error
+    batches = None
+    if batch_size is not None:
+        assert max_prompt_characters_per_batch is not None
+        batches = _hf_batches(
+            [example for example in pending if example.row_id not in validation_errors],
+            decision_model=decision_model,
+            batch_size=batch_size,
+            max_prompt_characters_per_batch=max_prompt_characters_per_batch,
+        )
+    framework = run_inspect(
+        pending,
+        output_dir,
+        adapter=decision_model,
+        record_result=_successful_record,
+        concurrency=concurrency,
+        metadata=metadata,
+        batches=batches,
+        validation_errors=validation_errors,
+        checkpoint_dir=checkpoint_dir,
+        checkpoint_interval_seconds=checkpoint_interval_seconds,
+    )
+    if checkpoint_dir is not None:
+        _write_raw_checkpoint(raw_path, checkpoint_dir)
+    latest_records = {
+        str(record["row_id"]): record
+        for record in (json.loads(line) for line in raw_path.read_text().splitlines())
+    }
+    inspect_rows = sum(
+        record.get("evaluation_framework") == "inspect-ai" for record in latest_records.values()
+    )
+    audited.update(audited_records(output_dir / "inspect"))
+    if not framework and (output_dir / "summary.json").exists():
+        previous = json.loads((output_dir / "summary.json").read_text())
+        framework = {
+            key: previous[key]
+            for key in ("evaluation_framework", "evaluation_framework_version")
+            if key in previous
+        }
     summary = summarize_raw(raw_path)
     summary.update(metadata)
-    summary.update({"requested_rows": len(examples), "raw_sha256": _sha256_file(raw_path)})
+    successful_rows = int(summary["successful_rows"])
+    supported_accuracy = summary["metrics"].get("overall", {}).get("accuracy", 0.0)
+    summary.update(
+        {
+            **framework,
+            "requested_rows": len(examples),
+            "raw_sha256": _sha256_file(raw_path),
+            "coverage": successful_rows / len(examples),
+            "eligible_rows": len(examples) - len(validation_errors),
+            "ineligible_rows": len(validation_errors),
+            "inspect_rows": inspect_rows,
+            "legacy_rows": len(latest_records) - inspect_rows,
+            "inspect_provenance_complete": (
+                len(latest_records) == len(examples)
+                and all(audited.get(row_id) == record for row_id, record in latest_records.items())
+            ),
+            "benchmark_accuracy_counting_unsupported_as_incorrect": (
+                float(supported_accuracy) * successful_rows / len(examples)
+            ),
+            "inspect_logs": [
+                str(path.relative_to(output_dir))
+                for path in sorted((output_dir / "inspect").glob("*.eval"))
+            ],
+        }
+    )
     _write_run_artifacts(output_dir, summary)
     return summary
 
-
-def _evaluate_one(
-    decision_model: (
-        OpenRouterDecisionModel
-        | JevOpenRouterDecisionModel
-        | OpenRouterTopLogprobsDecisionModel
-        | SystemOneHTTPDecisionModel
-    ),
-    example: DecisionExample,
-) -> dict[str, Any]:
-    result = decision_model.predict(example)
-    return _successful_record(example, result)
 
 
 def _successful_record(example: DecisionExample, result: Any) -> dict[str, Any]:
@@ -817,7 +712,7 @@ def summarize_raw(raw_path: Path) -> dict[str, Any]:
         for record in groups["overall"]
         if isinstance(record.get("input_contract"), dict)
     ]
-    return {
+    summary: dict[str, Any] = {
         "successful_rows": len(groups["overall"]),
         "error_rows": errors,
         "model_input_truncation": {
@@ -851,6 +746,9 @@ def summarize_raw(raw_path: Path) -> dict[str, Any]:
             if records
         },
     }
+
+    summary["metrics"].setdefault("overall", {"rows": 0})
+    return summary
 
 
 def _record_dimension(record: dict[str, Any], name: str) -> str | None:
@@ -935,9 +833,12 @@ def _write_run_artifacts(output_dir: Path, summary: dict[str, Any]) -> None:
             "summary.json": _sha256_file(summary_path),
         },
     }
-    (output_dir / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n"
-    )
+    for name in summary.get("inspect_logs", []):
+        relative = Path(name)
+        if relative.parts[:1] != ("inspect",) or ".." in relative.parts:
+            raise ValueError("Inspect artifact must be inside the run's inspect directory")
+        manifest["files"][name] = _sha256_file(output_dir / relative)
+    (output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
 def _write_raw_checkpoint(raw_path: Path, checkpoint_dir: Path) -> None:
@@ -968,13 +869,12 @@ def _write_raw_checkpoint(raw_path: Path, checkpoint_dir: Path) -> None:
 def _completed_row_ids(raw_path: Path) -> set[str]:
     if not raw_path.exists():
         return set()
-    completed: set[str] = set()
+    latest: dict[str, str] = {}
     with raw_path.open() as handle:
         for line in handle:
             record = json.loads(line)
-            if record.get("status") == "ok":
-                completed.add(str(record["row_id"]))
-    return completed
+            latest[str(record["row_id"])] = str(record.get("status"))
+    return {row_id for row_id, status in latest.items() if status == "ok"}
 
 
 def _recorded_row_ids(raw_path: Path) -> set[str]:
