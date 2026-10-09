@@ -25,8 +25,8 @@ from inspect_ai.model import (
     get_model,
     modelapi,
 )
-from inspect_ai.scorer import Metric, SampleScore, Score, Scorer, Target, metric, scorer
-from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.scorer import Metric, SampleScore, exact, metric
+from inspect_ai.solver import generate
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from decision_bench.schemas import DecisionExample
@@ -40,6 +40,13 @@ def audited_records(log_dir: Path) -> dict[str, Record]:
     for path in sorted(log_dir.glob("*.eval")):
         log = read_eval_log(str(path))
         for sample in log.samples or []:
+            record = (sample.output.metadata or {}).get("raw_record")
+            exact_score = (sample.scores or {}).get("exact")
+            if isinstance(record, dict) and exact_score is not None:
+                correct = record["status"] == "ok" and record["scored"]["correct"]
+                if (exact_score.value == "C") == correct:
+                    records[str(record["row_id"])] = record
+            # Preserve resume support for logs made before the built-in scorer.
             for score in (sample.scores or {}).values():
                 record = (score.metadata or {}).get("raw_record")
                 if isinstance(record, dict):
@@ -51,6 +58,11 @@ class UnsupportedCandidateCount(ValueError):
     """An adapter cannot represent this row's full candidate set."""
 
 
+def candidate_target(candidate_id: str) -> str:
+    """Avoid collisions caused by exact()'s case and punctuation normalization."""
+    return "dbid" + candidate_id.encode("utf-8").hex()
+
+
 def decision_sample(example: DecisionExample) -> Sample:
     """Keep labels and source annotations out of the model-visible input."""
     payload = example.model_dump(
@@ -59,7 +71,7 @@ def decision_sample(example: DecisionExample) -> Sample:
     return Sample(
         id=example.row_id,
         input=json.dumps(payload, ensure_ascii=False, sort_keys=True),
-        target=example.gold_candidate_id,
+        target=candidate_target(example.gold_candidate_id),
         metadata={"example": example.model_dump(mode="json")},
     )
 
@@ -81,6 +93,13 @@ class NativeDecisionAPI(ModelAPI):
         self.batch_remaining: dict[int, int] = {}
         self.batch_lock = asyncio.Lock()
         self.responses: dict[str, Any] = {}
+        self.raw_path: Path
+        self.total = 0
+        self.completed = 0
+        self.started = time.monotonic()
+        self.last_checkpoint_at = self.started
+        self.checkpoint_dir: Path | None = None
+        self.checkpoint_interval_seconds = 120
 
     async def _predict_batch(self, index: int) -> None:
         assert self.batches is not None
@@ -91,53 +110,89 @@ class NativeDecisionAPI(ModelAPI):
             {example.row_id: result for example, result in zip(batch, results, strict=True)}
         )
 
+    def _write_record(self, record: Record) -> None:
+        # Persist before scoring so interrupted/unscored samples remain resumable.
+        with self.raw_path.open("a") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        self.completed += 1
+        now = time.monotonic()
+        if self.checkpoint_dir is not None and (
+            now - self.last_checkpoint_at >= self.checkpoint_interval_seconds
+            or self.completed == self.total
+        ):
+            from decision_bench.evaluate import _write_raw_checkpoint
+
+            _write_raw_checkpoint(self.raw_path, self.checkpoint_dir)
+            self.last_checkpoint_at = now
+        progress_every = max(10, min(100, max(self.total // 100, 1)))
+        if self.completed % progress_every == 0 or self.completed == self.total:
+            elapsed = max(now - self.started, 1e-9)
+            print(
+                "DECISION_BENCH_PROGRESS "
+                f"completed={self.completed} total={self.total} "
+                f"rows_per_second={self.completed / elapsed:.3f}",
+                flush=True,
+            )
+
     async def generate(
         self,
         input: list[ChatMessage],
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         payload = json.loads(input[-1].text)
         row_id = str(payload["row_id"])
         example = self.examples[row_id]
-        if row_id in self.validation_errors:
-            raise self.validation_errors[row_id]
-        if self.batches is None:
-            result = await asyncio.to_thread(self.adapter.predict, example)
-        else:
-            index = self.batch_indices[row_id]
-            if index not in self.batch_tasks:
-                # Dispatch the whole preplanned batch at its first sample. Never wait
-                # for peer samples: that would deadlock at low Inspect concurrency.
-                self.batch_tasks[index] = asyncio.create_task(self._predict_batch(index))
-            try:
-                await self.batch_tasks[index]
-                result = self.responses.pop(row_id)
-            finally:
-                self.batch_remaining[index] -= 1
-                if self.batch_remaining[index] == 0:
-                    del self.batch_tasks[index]
-        record = self.record_result(example, result)
-        record["evaluation_framework"] = "inspect-ai"
+        result: Any = None
+        try:
+            if row_id in self.validation_errors:
+                raise self.validation_errors[row_id]
+            if self.batches is None:
+                result = await asyncio.to_thread(self.adapter.predict, example)
+            else:
+                index = self.batch_indices[row_id]
+                if index not in self.batch_tasks:
+                    # Dispatch a full planned batch without waiting for peer samples.
+                    self.batch_tasks[index] = asyncio.create_task(self._predict_batch(index))
+                try:
+                    await self.batch_tasks[index]
+                    result = self.responses.pop(row_id)
+                finally:
+                    self.batch_remaining[index] -= 1
+                    if self.batch_remaining[index] == 0:
+                        del self.batch_tasks[index]
+            record = self.record_result(example, result)
+            record["evaluation_framework"] = "inspect-ai"
+            completion = candidate_target(record["scored"]["selected_candidate_id"])
+        except Exception as error:
+            record = error_record(example, error)
+            # Valid targets always start with dbid; this cannot match any target.
+            completion = "dberror"
         self.records[row_id] = record
-        return (
-            ModelOutput.from_content(
-                self.model_name,
-                json.dumps({"probabilities": result.prediction.probabilities}),
-            ),
-            ModelCall.create(request=result.request, response=result.response),
-        )
+        self._write_record(record)
+        output = ModelOutput.from_content(self.model_name, completion)
+        output.metadata = {"raw_record": record}
+        if result is None:
+            return output
+        return output, ModelCall.create(request=result.request, response=result.response)
 
 
-@metric
+@metric(scores="unreduced")
 def decision_metrics() -> Metric:
     """Compute DecisionBench metrics from native records, including all-row accuracy."""
 
     def compute(scores: list[SampleScore]) -> dict[str, float]:
-        records = [(item.score.metadata or {})["raw_record"] for item in scores]
+        api = cast(NativeDecisionAPI, get_model().api)
+        records = [api.records[str(item.sample_id)] for item in scores]
+        for item, record in zip(scores, records, strict=True):
+            correct = record["status"] == "ok" and record["scored"]["correct"]
+            if (item.score.value == "C") != correct:
+                raise RuntimeError("Inspect exact-match score disagrees with native decision score")
         successful = [record for record in records if record["status"] == "ok"]
-        correct = sum(bool(record["scored"]["correct"]) for record in successful)
+        correct = sum(item.score.value == "C" for item in scores)
         count = len(records)
         supported = len(successful)
         # Share the canonical implementation rather than a framework-default ECE.
@@ -160,21 +215,6 @@ def decision_metrics() -> Metric:
     return compute
 
 
-@scorer(metrics=[decision_metrics()])
-def decision_score() -> Scorer:
-    async def score(state: TaskState, target: Target) -> Score:
-        record = state.metadata["raw_record"]
-        successful = record["status"] == "ok"
-        return Score(
-            value=int(successful and record["scored"]["correct"]),
-            answer=record["scored"]["selected_candidate_id"] if successful else None,
-            explanation=None if successful else record["error"],
-            metadata={"raw_record": record},
-        )
-
-    return score
-
-
 def error_record(example: DecisionExample, error: Exception) -> Record:
     return {
         "status": "error",
@@ -189,56 +229,6 @@ def error_record(example: DecisionExample, error: Exception) -> Record:
         "error": str(error),
         "evaluation_framework": "inspect-ai",
     }
-
-
-@solver
-def native_decision_solver(
-    raw_path: str,
-    total: int,
-    checkpoint_dir: str | None = None,
-    checkpoint_interval_seconds: int = 120,
-) -> Solver:
-    started = time.monotonic()
-    last_checkpoint_at = started
-    completed = 0
-    progress_every = max(10, min(100, max(total // 100, 1)))
-
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        nonlocal completed, last_checkpoint_at
-        api = cast(NativeDecisionAPI, get_model().api)
-        row_id = str(state.sample_id)
-        try:
-            state.output = await get_model().generate(state.messages, cache=False)
-            record = api.records.pop(row_id)
-        except Exception as error:
-            record = error_record(api.examples[row_id], error)
-        state.metadata["raw_record"] = record
-        # Append before scoring so interruption/scoring failure remains resumable.
-        with Path(raw_path).open("a") as handle:
-            handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        completed += 1
-        now = time.monotonic()
-        if checkpoint_dir is not None and (
-            now - last_checkpoint_at >= checkpoint_interval_seconds or completed == total
-        ):
-            from decision_bench.evaluate import _write_raw_checkpoint
-
-            _write_raw_checkpoint(Path(raw_path), Path(checkpoint_dir))
-            last_checkpoint_at = now
-        if completed % progress_every == 0 or completed == total:
-            elapsed = max(time.monotonic() - started, 1e-9)
-            print(
-                "DECISION_BENCH_PROGRESS "
-                f"completed={completed} total={total} "
-                f"rows_per_second={completed / elapsed:.3f}",
-                flush=True,
-            )
-        state.completed = True
-        return state
-
-    return solve
 
 
 def run_inspect(
@@ -269,6 +259,10 @@ def run_inspect(
     api.record_result = record_result
     api.validation_errors = validation_errors or {}
     api.batches = batches
+    api.raw_path = output_dir / "raw.jsonl"
+    api.total = len(examples)
+    api.checkpoint_dir = checkpoint_dir
+    api.checkpoint_interval_seconds = checkpoint_interval_seconds
     if batches is not None:
         api.batch_indices = {
             example.row_id: index for index, batch in enumerate(batches) for example in batch
@@ -280,13 +274,9 @@ def run_inspect(
     task = Task(
         name="DecisionBench",
         dataset=[decision_sample(example) for example in examples],
-        solver=native_decision_solver(
-            str(output_dir / "raw.jsonl"),
-            len(examples),
-            str(checkpoint_dir) if checkpoint_dir is not None else None,
-            checkpoint_interval_seconds,
-        ),
-        scorer=decision_score(),
+        solver=generate(),
+        scorer=exact(),
+        metrics=[decision_metrics()],
         metadata={**metadata, "ece_definition": "15-bin equal-width top-label ECE"},
     )
     logs = inspect_eval(
