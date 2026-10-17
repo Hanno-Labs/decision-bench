@@ -14,7 +14,7 @@ from typing import Any, Literal
 from decision_bench.inspect_runtime import UnsupportedCandidateCount, audited_records, run_inspect
 from decision_bench.models import (
     CuaS1HFDecisionModel,
-    GLiNER25DecideModel,
+    GLiNER25ClassificationModel,
     HFDecisionModel,
     JevOpenRouterDecisionModel,
     MoJevHFDecisionModel,
@@ -312,7 +312,7 @@ def run_public_hf_evaluation(
 
     decision_model: (
         CuaS1HFDecisionModel
-        | GLiNER25DecideModel
+        | GLiNER25ClassificationModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
@@ -333,7 +333,7 @@ def run_public_hf_evaluation(
             attn_implementation=attn_implementation,
         )
     elif model_type == "gliner25":
-        decision_model = GLiNER25DecideModel(
+        decision_model = GLiNER25ClassificationModel(
             model_dir=model_dir,
             model_repo=model_repo,
             model_revision=model_revision,
@@ -422,7 +422,7 @@ def _run_hf_batches(
     decision_model: (
         HFDecisionModel
         | CuaS1HFDecisionModel
-        | GLiNER25DecideModel
+        | GLiNER25ClassificationModel
         | NimbleHFDecisionModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
@@ -459,7 +459,7 @@ def _hf_batches(
     decision_model: (
         HFDecisionModel
         | CuaS1HFDecisionModel
-        | GLiNER25DecideModel
+        | GLiNER25ClassificationModel
         | NimbleHFDecisionModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel

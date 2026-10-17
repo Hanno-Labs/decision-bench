@@ -3,13 +3,22 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pytest
 
-from decision_bench.models.gliner25 import GLiNER25DecideModel
+from decision_bench.models.gliner25 import (
+    CHECKPOINTS,
+    GLiNER25ClassificationModel,
+)
 from decision_bench.schemas import Candidate, DecisionExample, Primitive
+
+SMALL_V1 = "fastino/gliner2.5-small-v1"
+SMALL_V1_REVISION = "3ec6d3dd7e1e93a7cf9b46096fa47aeda61c711c"
+DECIDE = "fastino/GLiNER2.5-Decide"
+DECIDE_REVISION = "0872ab149bd2f8a50ed5fc7ad8cfc3293e9a3bad"
 
 
 def _example(count: int, primitive: Primitive) -> DecisionExample:
@@ -71,18 +80,55 @@ class _FakeClassifier:
 
 def _model(
     monkeypatch: pytest.MonkeyPatch, example: DecisionExample, **kwargs: Any
-) -> GLiNER25DecideModel:
+) -> GLiNER25ClassificationModel:
     package = ModuleType("gliner2")
     classification = ModuleType("gliner2.classification")
     classification.ClassificationConfig = lambda **options: options  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "gliner2", package)
     monkeypatch.setitem(sys.modules, "gliner2.classification", classification)
 
-    model = GLiNER25DecideModel.__new__(GLiNER25DecideModel)
+    model = GLiNER25ClassificationModel.__new__(GLiNER25ClassificationModel)
     model._classifier = _FakeClassifier(**kwargs)
     model._classifier.labels = [candidate.label for candidate in example.candidates]
     model._build_schema = lambda row: object()  # type: ignore[assignment]
+    model.checkpoint = CHECKPOINTS[1]
+    model.model_repo = SMALL_V1
+    model.model_revision = SMALL_V1_REVISION
+    model.device = "cpu"
     return model
+
+
+def _install_loader(monkeypatch: pytest.MonkeyPatch, *, architecture: str) -> None:
+    torch_module = ModuleType("torch")
+    torch_module.cuda = SimpleNamespace(is_available=lambda: False)  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "torch", torch_module)
+
+    package = ModuleType("gliner2")
+    classification = ModuleType("gliner2.classification")
+
+    class _InnerModel:
+        pass
+
+    _InnerModel.architecture = architecture  # type: ignore[attr-defined]
+
+    class _Classifier:
+        def __init__(self, path: str) -> None:
+            self.path = path
+            self.model = _InnerModel()
+
+        @classmethod
+        def from_pretrained(cls, path: str) -> _Classifier:
+            return cls(path)
+
+        def to(self, device: str | None = None) -> _Classifier:
+            return self
+
+        def eval(self) -> _Classifier:
+            return self
+
+    classification.Classifier = _Classifier  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "gliner2", package)
+    monkeypatch.setitem(sys.modules, "gliner2.classification", classification)
 
 
 @pytest.mark.parametrize(
@@ -110,6 +156,7 @@ def test_gliner25_preserves_candidate_order_and_raw_scores(
     assert len(response.response["native_logits"]) == count
     assert response.input_contract is not None
     assert response.input_contract["original_input_tokens"] == 100
+    assert response.input_contract["policy_version"] == "gliner25-boundary-exact-encoder-v1"
     assert response.input_contract["model_facing_example"] == example.model_dump(mode="json")
 
 
@@ -136,3 +183,54 @@ def test_gliner25_rejects_missing_candidate_score(monkeypatch: pytest.MonkeyPatc
 
     with pytest.raises(RuntimeError, match="incomplete candidate scores"):
         model.predict_batch([example])
+
+
+def test_gliner25_registry_covers_both_architectures() -> None:
+    by_key = {(entry.model_id, entry.revision): entry for entry in CHECKPOINTS}
+
+    assert by_key[(DECIDE, DECIDE_REVISION)].architecture == "span"
+    assert by_key[(SMALL_V1, SMALL_V1_REVISION)].architecture == "boundary"
+    assert by_key[(SMALL_V1, SMALL_V1_REVISION)].tokenizer_revision == SMALL_V1_REVISION
+
+
+def test_gliner25_loader_accepts_boundary_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_loader(monkeypatch, architecture="boundary")
+
+    model = GLiNER25ClassificationModel(
+        model_dir=Path("/tmp/model"),
+        model_repo=SMALL_V1,
+        model_revision=SMALL_V1_REVISION,
+    )
+
+    assert model.device == "cpu"
+    assert model.metadata["architecture"] == "boundary"
+    assert model.metadata["model_type"] == "gliner25_boundary_classifier"
+    assert model.metadata["tokenizer_revision"] == SMALL_V1_REVISION
+
+
+def test_gliner25_loader_rejects_unpinned_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_loader(monkeypatch, architecture="boundary")
+
+    with pytest.raises(ValueError, match=r"unsupported GLiNER2\.5 checkpoint"):
+        GLiNER25ClassificationModel(
+            model_dir=Path("/tmp/model"),
+            model_repo=SMALL_V1,
+            model_revision="0" * 40,
+        )
+
+
+def test_gliner25_loader_rejects_architecture_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_loader(monkeypatch, architecture="span")
+
+    with pytest.raises(ValueError, match="pins architecture 'boundary'"):
+        GLiNER25ClassificationModel(
+            model_dir=Path("/tmp/model"),
+            model_repo=SMALL_V1,
+            model_revision=SMALL_V1_REVISION,
+        )
