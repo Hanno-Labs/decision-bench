@@ -33,6 +33,7 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 | `run-jev-openrouter` | [`typesafe/jev-1.13`](https://openrouter.ai/typesafe/jev-1.13) | OpenRouter Decisions API distributions |
 | `run-system-one-http` | [`juspay/xor`](https://huggingface.co/juspay/xor) | Released Jev-compatible SystemOne API; forward/reverse option-letter logprobs with published calibration; up to 26 candidates |
 | `run-system-one-http` (`jobs/run_imajev_eval.sh`) | [`mohit67890/imajev-4b`](https://huggingface.co/mohit67890/imajev-4b) | Open-weight Jev-compatible SystemOne server (Qwen3.5-4B + LoRA + trained 256-code decision readout); direct candidate scoring averaged over 4 option rotations, temperature-calibrated; up to 255 candidates, 65,536 input tokens |
+| `run-system-one-http --hosted-service` | [Nace Drex Max](https://console.nace.ai/docs/drex/guides/drex-max) (`drex-max`) | Hosted System One API; native Noul, Choice, and Score distributions, up to 255 candidates, with no truncation. Record a dated hosted-service snapshot; the hosted weights and serving bundle are not publicly pinned. |
 | `run-openrouter` | An OpenRouter chat model that can produce the required JSON-schema probability vector | Structured probability vector |
 | `run-openrouter-top-logprobs` | An OpenRouter chat model that returns every required candidate in top-logprobs | Conditional next-token probabilities |
 
@@ -57,6 +58,16 @@ runner sends the benchmark's Noul, Choice, and Score requests to `/v1/systemone`
 than 26 candidates, rendered state over 4 MiB, or serialized requests over 8 MiB remain explicit
 unsupported rows; the adapter never truncates them.
 
+`run-system-one-http` can also evaluate a hosted Jev-compatible SystemOne service that requires a
+key. Pass `--api-key-env NAME` to send the key held in that environment variable as a bearer
+token. The key is sent only over HTTPS or to a loopback address and is never written to run
+artifacts; the run metadata records `endpoint_authentication: bearer` and `max_retries: 0`.
+Authenticated requests are not retried automatically because a failed response may already
+have been billed. Hosted services are a
+secondary path: record the service route in `--base-url` and `--inference-image`, use a dated
+service snapshot as `--model-revision`, and pass `--serving-bundle-sha256 none`, since no serving
+bundle is pinned.
+
 The imajev runner (`jobs/run_imajev_eval.sh`) pins adapter revision
 `c9e5f132465da85d31735ec502d5557982671a7d` of `mohit67890/imajev-4b` (LoRA weights SHA-256
 `88c2c44361e0c469352495abcfee789ff73a4deae0811168d9402cfc2b6e749c`; every file is checked against the
@@ -71,3 +82,12 @@ candidates remain explicit unsupported rows; at 65,536 input tokens every Decisi
 The run records `adapter=imajev-serving-systemone-v1` and
 `probability_source=trained_readout_4_rotation_mean_temperature_calibrated_v1` through the
 `--adapter-name` / `--probability-source` options.
+
+For Drex Max, use the hosted System One runner with `--api-key-env` naming an environment
+variable containing the Nace API key, `--hosted-service`, `--model drex-max`,
+`--max-candidates 255`, `--max-request-bytes 4194304`, and
+`--expected-response-model drex-max`. Set `--model-revision` to the dated hosted-service
+snapshot being measured. The API reports native candidate probabilities; the runner does
+not ask for a generated probability vector. Set `--rpm` to the account's measured limit
+with margin. This benchmark's frozen inputs are textual, so Drex Max's image capability
+is not exercised by this result.

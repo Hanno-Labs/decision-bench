@@ -139,14 +139,17 @@ def run_system_one_http_evaluation(
     model: str,
     model_repo: str,
     model_revision: str,
-    serving_bundle_sha256: str,
-    inference_image: str,
+    serving_bundle_sha256: str | None,
+    inference_image: str | None,
     concurrency: int,
     max_candidates: int = 26,
     max_rendered_state_characters: int = 4 * 1024 * 1024,
     max_request_bytes: int = 8 * 1024 * 1024,
     adapter_name: str = XOR_ADAPTER_NAME,
     probability_source: str = XOR_PROBABILITY_SOURCE,
+    api_key_env: str | None = None,
+    max_requests_per_minute: int | None = None,
+    expected_response_model: str | None = None,
     benchmark_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate a pinned Jev-compatible SystemOne endpoint without truncation."""
@@ -163,6 +166,9 @@ def run_system_one_http_evaluation(
         max_request_bytes=max_request_bytes,
         adapter_name=adapter_name,
         probability_source=probability_source,
+        api_key_env=api_key_env,
+        max_requests_per_minute=max_requests_per_minute,
+        expected_response_model=expected_response_model,
     ) as decision_model:
         summary = _run_evaluation(
             examples,
@@ -321,9 +327,7 @@ def run_public_hf_evaluation(
     )
     if model_type == "cua-s1":
         if base_revision is None or expected_weights_sha256 is None:
-            raise ValueError(
-                "Cua-S1 requires a pinned base revision and expected weights SHA-256"
-            )
+            raise ValueError("Cua-S1 requires a pinned base revision and expected weights SHA-256")
         decision_model = CuaS1HFDecisionModel(
             model_dir=model_dir,
             model_repo=model_repo,
@@ -406,8 +410,7 @@ def run_public_hf_evaluation(
                 else "rows rejected by the model adapter's input contract"
             ),
             "coverage": successful_rows / len(examples),
-            "benchmark_accuracy_counting_unsupported_as_incorrect": correct_rows
-            / len(examples),
+            "benchmark_accuracy_counting_unsupported_as_incorrect": correct_rows / len(examples),
             "raw_sha256": _sha256_file(output_dir / "raw.jsonl"),
         }
     )
@@ -485,7 +488,8 @@ def _hf_batches(
         ordered = sorted(
             examples,
             key=lambda example: (
-                len(example.candidates), decision_model.prompt_characters(example)
+                len(example.candidates),
+                decision_model.prompt_characters(example),
             ),
         )
     batches: list[list[DecisionExample]] = []
@@ -661,7 +665,6 @@ def _run_evaluation(
     return summary
 
 
-
 def _successful_record(example: DecisionExample, result: Any) -> dict[str, Any]:
     scored = score_prediction(example, result.prediction)
     record = {
@@ -717,9 +720,7 @@ def summarize_raw(raw_path: Path) -> dict[str, Any]:
         "error_rows": errors,
         "model_input_truncation": {
             "reported_rows": len(input_contracts),
-            "truncated_rows": sum(
-                bool(contract.get("truncated")) for contract in input_contracts
-            ),
+            "truncated_rows": sum(bool(contract.get("truncated")) for contract in input_contracts),
             "policy_versions": sorted(
                 {
                     str(contract["policy_version"])

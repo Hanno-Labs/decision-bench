@@ -50,9 +50,7 @@ def inspect_task(
 
     resolved_root = project_root if project_root is not None else Path.cwd()
     benchmark = get_benchmark(spec_path, project_root=resolved_root)
-    examples = [
-        example.model_dump(mode="json") for example in benchmark.examples[:limit]
-    ]
+    examples = [example.model_dump(mode="json") for example in benchmark.examples[:limit]]
     typer.echo(
         json.dumps(
             {
@@ -257,9 +255,7 @@ def run_nimble_hf(
     project_root: Annotated[Path | None, typer.Option()] = None,
     compact_fields: Annotated[bool, typer.Option(help="Select compact input.")] = False,
     adapter_repo: Annotated[str, typer.Option()] = "bespokelabs/Bespoke-Nimble-9B",
-    adapter_revision: Annotated[str, typer.Option()] = (
-        "594dfdcfb6f94e3d0c0db7535180d3c71689169a"
-    ),
+    adapter_revision: Annotated[str, typer.Option()] = ("594dfdcfb6f94e3d0c0db7535180d3c71689169a"),
     expected_adapter_sha256: Annotated[str, typer.Option()] = (
         "ba7e28acb97f973e80fa51f3aa6fc6f75ea4081b89632ed45d8e5f3a1d7bfa6b"
     ),
@@ -384,26 +380,39 @@ def run_system_one_http(
     base_url: Annotated[str, typer.Option()] = "http://127.0.0.1:30002",
     model: Annotated[str, typer.Option()] = "xor",
     model_repo: Annotated[str, typer.Option()] = "juspay/xor",
-    model_revision: Annotated[str, typer.Option()] = (
-        "679decd4c669e5c37f4ac29dbd9957997424c876"
-    ),
+    model_revision: Annotated[str, typer.Option()] = ("679decd4c669e5c37f4ac29dbd9957997424c876"),
     serving_bundle_sha256: Annotated[str, typer.Option()] = (
         "0a63473caaa3c6bfc8bc15fbab62f0a9a84c7ebf4ab6e06d0699891b7be6159b"
     ),
     inference_image: Annotated[str, typer.Option()] = (
-        "lmsysorg/sglang@sha256:"
-        "6bcaa47db52f78ce0d67863b8b2431221b79bc23204a80cad757fa819d00e921"
+        "lmsysorg/sglang@sha256:6bcaa47db52f78ce0d67863b8b2431221b79bc23204a80cad757fa819d00e921"
     ),
     concurrency: Annotated[int, typer.Option(min=1, max=256)] = 32,
     max_candidates: Annotated[int, typer.Option(min=2)] = 26,
-    max_rendered_state_characters: Annotated[int, typer.Option(min=1)] = (
-        4 * 1024 * 1024
-    ),
+    max_rendered_state_characters: Annotated[int, typer.Option(min=1)] = (4 * 1024 * 1024),
     max_request_bytes: Annotated[int, typer.Option(min=1)] = 8 * 1024 * 1024,
     adapter_name: Annotated[str, typer.Option()] = "xor-serving-systemone-v1",
     probability_source: Annotated[str, typer.Option()] = (
         "forward_reverse_option_letter_logprobs_calibrated_v1"
     ),
+    api_key_env: Annotated[
+        str | None,
+        typer.Option(
+            help=(
+                "Environment variable holding a bearer key for a hosted endpoint; "
+                "sent only over HTTPS or to loopback and never recorded."
+            )
+        ),
+    ] = None,
+    hosted_service: Annotated[
+        bool, typer.Option(help="Hosted API with no published serving bundle or inference image.")
+    ] = False,
+    rpm: Annotated[
+        int | None, typer.Option(min=1, help="Maximum request starts per minute.")
+    ] = None,
+    expected_response_model: Annotated[
+        str | None, typer.Option(help="Fail if the API response names a different model.")
+    ] = None,
     smoke: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Run a pinned Jev-compatible SystemOne HTTP endpoint."""
@@ -420,14 +429,17 @@ def run_system_one_http(
         model=model,
         model_repo=model_repo,
         model_revision=model_revision,
-        serving_bundle_sha256=serving_bundle_sha256,
-        inference_image=inference_image,
+        serving_bundle_sha256=None if hosted_service else serving_bundle_sha256,
+        inference_image=None if hosted_service else inference_image,
         concurrency=concurrency,
         max_candidates=max_candidates,
         max_rendered_state_characters=max_rendered_state_characters,
         max_request_bytes=max_request_bytes,
         adapter_name=adapter_name,
         probability_source=probability_source,
+        api_key_env=api_key_env,
+        max_requests_per_minute=rpm,
+        expected_response_model=expected_response_model,
         benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))
