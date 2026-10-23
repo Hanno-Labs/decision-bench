@@ -23,6 +23,7 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 |---|---|---|
 | `run-hf` | [`Hanno-Labs/bosun-v3.1-0.6b`](https://huggingface.co/Hanno-Labs/bosun-v3.1-0.6b), [`Hanno-Labs/bosun-v3.1-1.7b`](https://huggingface.co/Hanno-Labs/bosun-v3.1-1.7b) | Masked softmax over valid decision tokens |
 | `run-nimble-hf` | [`bespokelabs/Bespoke-Nimble-9B`](https://huggingface.co/bespokelabs/Bespoke-Nimble-9B) | Published candidate-token logits; up to 26 choices |
+| `run-public-hf --model-type arbit` | [`litillabs/arbit-1.7b`](https://huggingface.co/litillabs/arbit-1.7b) | Released remote-code `decide()`: joint schema head option logits at the served per-type temperature, softmaxed; one question per row; rows over 27,648 input tokens are unsupported |
 | `run-public-hf --model-type cua-s1` | [`cua-ai/cua-s1-4b-0.2`](https://huggingface.co/cua-ai/cua-s1-4b-0.2) text adapter | Published final-position option-letter logits; up to 26 candidates |
 | `run-public-hf --model-type gliner25` | [`fastino/GLiNER2.5-Decide`](https://huggingface.co/fastino/GLiNER2.5-Decide) | Exclusive classification logits over candidate labels, softmaxed as conditional option preference; rows over 512 encoded tokens or with `(` in a candidate label are unsupported |
 | `run-public-hf --model-type mojev` | [`MoLeMo-Lab/mojev`](https://huggingface.co/MoLeMo-Lab/mojev) | Published packed candidate logits; up to 255 candidates |
@@ -42,6 +43,25 @@ The local Hugging Face rows run pinned weights. MoJev's adapter pins model revis
 surfaces: record the provider model name, request settings, and dated service snapshot when you
 submit results. `decision-bench --help` documents all runners; use the runner's `--help` for its
 required paths and model-specific options.
+
+The Arbit runner (`arbit-hf-remote-code-v1`) pins model revision
+`d8ca47d20f5f406317994c4df096b7bedfefb5de` of `litillabs/arbit-1.7b` on base
+`unsloth/Qwen3-1.7B` at `6262b50d6c1f8ee5e4ac750d710c33603bfc2a0c`. It checks the SHA-256 of the
+release's loader code and of its adapter, head, decision-configuration and tokenizer files (adapter
+weights `0167368adfbe03e48593e7b2b7deba4979b92c05cf389975e530d6ab2cd43655`), loads the model from
+the Hub with `AutoModel.from_pretrained(..., revision=..., trust_remote_code=True)`, so `MODEL_DIR`
+is not read, and takes the unrounded per-option probabilities from the model's `decide()`. Each row
+is one question with id `decision`: binary rows are `noul` with `candidates[0]` as the true side,
+selection rows are `choice` with option keys `"<3-digit display index> <label>"`, and ordinal rows
+are `score` levels in the row's candidate order, level *i* being `candidates[i]`. Levels are not
+sorted by `ordinal_value`: the adapter does not read it, and the evaluator's scoring uses it for the
+expected ordinal score. The `run-hf`, NanoJev and OpenJev runners likewise leave it out of the model
+input, and each row's request and response record the order. When every candidate description is a
+JSON object with the same keys, the descriptions become a lossless table: the field list once after
+the instruction, then each candidate's values. Rows whose rendered request is over 27,648 tokens by
+the model's `count_tokens` remain explicit unsupported rows; the adapter never truncates them, and
+every DecisionBench row fits. The runner scores Arbit rows in singleton batches, so `--batch-size`
+does not apply and a row that fails is recorded as that row's error alone.
 
 The registered Cua-S1 release is adapter revision
 `16818868b0cc7813808aae4e87b417657046ab79` on base revision

@@ -58,6 +58,7 @@ def main() -> None:
     parser.add_argument(
         "--model-type",
         choices=(
+            "arbit",
             "bosun",
             "cua-s1",
             "gliner25",
@@ -91,7 +92,7 @@ def main() -> None:
         if args.model_type == "nimble"
         else "run-public-hf"
         if args.model_type
-        in {"cua-s1", "gliner25", "mojev", "nanojev", "openjev", "system-one", "tev1"}
+        in {"arbit", "cua-s1", "gliner25", "mojev", "nanojev", "openjev", "system-one", "tev1"}
         else "run-hf"
     )
     command = [
@@ -112,6 +113,7 @@ def main() -> None:
     if args.compact_fields:
         command.append("--compact-fields")
     if args.model_type in {
+        "arbit",
         "cua-s1",
         "gliner25",
         "mojev",
@@ -172,6 +174,7 @@ def main() -> None:
     if args.smoke and requested_rows <= 0:
         raise RuntimeError("DecisionBench smoke selected no rows")
     if args.model_type in {
+        "arbit",
         "cua-s1",
         "gliner25",
         "mojev",
