@@ -13,6 +13,7 @@ from typing import Any, Literal
 
 from decision_bench.inspect_runtime import UnsupportedCandidateCount, audited_records, run_inspect
 from decision_bench.models import (
+    ArbitHFDecisionModel,
     CuaS1HFDecisionModel,
     GLiNER25DecideModel,
     HFDecisionModel,
@@ -293,7 +294,9 @@ def run_public_hf_evaluation(
     output_dir: Path,
     *,
     model_dir: Path,
-    model_type: Literal["cua-s1", "gliner25", "mojev", "nanojev", "openjev", "system-one", "tev1"],
+    model_type: Literal[
+        "arbit", "cua-s1", "gliner25", "mojev", "nanojev", "openjev", "system-one", "tev1"
+    ],
     model_repo: str,
     model_revision: str,
     base_revision: str | None,
@@ -311,7 +314,8 @@ def run_public_hf_evaluation(
         raise ValueError("checkpoint_interval_seconds must be positive")
 
     decision_model: (
-        CuaS1HFDecisionModel
+        ArbitHFDecisionModel
+        | CuaS1HFDecisionModel
         | GLiNER25DecideModel
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
@@ -319,7 +323,15 @@ def run_public_hf_evaluation(
         | SystemOneHFDecisionModel
         | Tev1HFDecisionModel
     )
-    if model_type == "cua-s1":
+    if model_type == "arbit":
+        decision_model = ArbitHFDecisionModel(
+            model_repo=model_repo,
+            model_revision=model_revision,
+            base_revision=base_revision,
+            expected_weights_sha256=expected_weights_sha256,
+            attn_implementation=attn_implementation,
+        )
+    elif model_type == "cua-s1":
         if base_revision is None or expected_weights_sha256 is None:
             raise ValueError(
                 "Cua-S1 requires a pinned base revision and expected weights SHA-256"
@@ -421,6 +433,7 @@ def _run_hf_batches(
     *,
     decision_model: (
         HFDecisionModel
+        | ArbitHFDecisionModel
         | CuaS1HFDecisionModel
         | GLiNER25DecideModel
         | NimbleHFDecisionModel
@@ -458,6 +471,7 @@ def _hf_batches(
     *,
     decision_model: (
         HFDecisionModel
+        | ArbitHFDecisionModel
         | CuaS1HFDecisionModel
         | GLiNER25DecideModel
         | NimbleHFDecisionModel
