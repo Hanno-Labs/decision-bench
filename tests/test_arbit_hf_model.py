@@ -351,6 +351,16 @@ def _rounded_disagrees(result: dict[str, Any]) -> None:
     result["answers"]["decision"]["probabilities"][key] += 0.01
 
 
+def _rounded_not_a_number(result: dict[str, Any]) -> None:
+    key = sorted(result["probabilities"]["decision"])[0]
+    result["answers"]["decision"]["probabilities"][key] = math.nan
+
+
+def _rounded_infinite(result: dict[str, Any]) -> None:
+    key = sorted(result["probabilities"]["decision"])[0]
+    result["answers"]["decision"]["probabilities"][key] = math.inf
+
+
 def _truncated(result: dict[str, Any]) -> None:
     result["truncated"] = True
 
@@ -371,6 +381,8 @@ def _other_question(result: dict[str, Any]) -> None:
         _not_finite,
         _not_normalized,
         _rounded_disagrees,
+        _rounded_not_a_number,
+        _rounded_infinite,
         _truncated,
         _token_mismatch,
         _other_question,
@@ -395,6 +407,72 @@ def test_arbit_rejects_malformed_decisions(mutate: Callable[[dict[str, Any]], No
 def test_arbit_requires_its_pinned_release(overrides: dict[str, str]) -> None:
     with pytest.raises(ValueError, match="Arbit requires"):
         ArbitHFDecisionModel(**overrides)
+
+
+class _OneBadRowModel(_FakeModel):
+    """Healthy decisions, except a malformed answer for one row and an exception for another."""
+
+    def decide(self, state: str, questions: dict[str, Any]) -> dict[str, Any]:
+        if "crash" in state:
+            raise RuntimeError("inference failed")
+        result = super().decide(state, questions)
+        if "malformed" in state:
+            _rounded_not_a_number(result)
+        return result
+
+
+def test_arbit_failing_rows_do_not_fail_their_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import decision_bench.evaluate as evaluate
+
+    labels = ["one", "two", "three"]
+    states = ["healthy a", "malformed", "healthy b", "crash", "healthy c", "long"]
+    examples = [
+        _example(Primitive.CANDIDATE_SELECTION, labels).model_copy(
+            update={"row_id": f"row-{index}", "state": {"text": state}}
+        )
+        for index, state in enumerate(states)
+    ]
+    model = _OneBadRowModel(tokens=lambda state: MAX_INPUT_TOKENS + 1 if "long" in state else 90)
+    monkeypatch.setattr(evaluate, "ArbitHFDecisionModel", lambda **kwargs: _adapter(model))
+
+    summary = evaluate.run_public_hf_evaluation(
+        examples,
+        tmp_path,
+        model_dir=tmp_path,
+        model_type="arbit",
+        model_repo=MODEL_REPO,
+        model_revision=MODEL_REVISION,
+        base_revision=None,
+        expected_weights_sha256=None,
+        batch_size=8,
+        max_prompt_characters_per_batch=100_000,
+        attn_implementation="sdpa",
+    )
+
+    assert summary["batch_size"] == 1
+    assert summary["successful_rows"] == 3
+    assert _classify_errors(tmp_path / "raw.jsonl") == {"unsupported_rows": 1, "error_rows": 2}
+    records = {
+        record["row_id"]: record
+        for record in map(json.loads, (tmp_path / "raw.jsonl").read_text().splitlines())
+    }
+    assert {row_id for row_id, record in records.items() if record["status"] == "ok"} == {
+        "row-0",
+        "row-2",
+        "row-4",
+    }
+    assert records["row-1"]["error_type"] == "RuntimeError"
+    assert "not finite" in records["row-1"]["error"]
+    assert records["row-3"]["error"] == "inference failed"
+    assert records["row-5"]["error_type"] == "UnsupportedArbitInputLength"
+    for row_id in ("row-0", "row-2", "row-4"):
+        example = next(example for example in examples if example.row_id == row_id)
+        [alone] = _adapter(_FakeModel(tokens=90)).predict_batch([example])
+        assert records[row_id]["request"] == alone.request
+        assert records[row_id]["response"] == alone.response
+        assert records[row_id]["input_contract"] == alone.input_contract
 
 
 def test_arbit_runs_through_the_public_hf_runner(

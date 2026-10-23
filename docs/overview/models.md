@@ -53,11 +53,15 @@ the Hub with `AutoModel.from_pretrained(..., revision=..., trust_remote_code=Tru
 is not read, and takes the unrounded per-option probabilities from the model's `decide()`. Each row
 is one question with id `decision`: binary rows are `noul` with `candidates[0]` as the true side,
 selection rows are `choice` with option keys `"<3-digit display index> <label>"`, and ordinal rows
-are `score` levels in display order. When every candidate description is a JSON object with the
-same keys, the descriptions become a lossless table: the field list once after the instruction, then
-each candidate's values. Rows whose rendered request is over 27,648 tokens by the model's
-`count_tokens` remain explicit unsupported rows; the adapter never truncates them, and every
-DecisionBench row fits.
+are `score` levels in the row's candidate order, level *i* being `candidates[i]`. Levels are not
+sorted by `ordinal_value`: the adapter does not read it, and the evaluator's scoring uses it for the
+expected ordinal score. The `run-hf`, NanoJev and OpenJev runners likewise leave it out of the model
+input, and each row's request and response record the order. When every candidate description is a
+JSON object with the same keys, the descriptions become a lossless table: the field list once after
+the instruction, then each candidate's values. Rows whose rendered request is over 27,648 tokens by
+the model's `count_tokens` remain explicit unsupported rows; the adapter never truncates them, and
+every DecisionBench row fits. The runner scores Arbit rows in singleton batches, so `--batch-size`
+does not apply and a row that fails is recorded as that row's error alone.
 
 The registered Cua-S1 release is adapter revision
 `16818868b0cc7813808aae4e87b417657046ab79` on base revision

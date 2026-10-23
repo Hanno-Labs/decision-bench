@@ -390,6 +390,10 @@ def run_public_hf_evaluation(
             attn_implementation=attn_implementation,
         )
 
+    if model_type == "arbit":
+        # Arbit answers one row per forward pass; singleton batches keep a failing row from
+        # failing the healthy rows that would otherwise share its batch.
+        batch_size = 1
     summary = _run_hf_batches(
         examples,
         output_dir,

@@ -13,8 +13,15 @@ Each benchmark row becomes one question, id ``decision``, built from the model-v
     candidate_selection    choice  option key "<3-digit display index> <label>", value =
                                    description; the model lists choice options sorted by key,
                                    which is display order
-    ordinal_scoring        score   criteria list in display order as "<label>: <description>";
-                                   level i is candidates[i]
+    ordinal_scoring        score   criteria list in the row's candidate order as
+                                   "<label>: <description>"; level i is candidates[i]
+
+Score levels keep the row's order and are never sorted by ``ordinal_value``: the adapter does not
+read it, and the evaluator's scoring uses it for the expected ordinal score over probabilities in
+candidate order. The ``run-hf`` decision-token, NanoJev and OpenJev runners likewise leave
+``ordinal_value`` out of the model input. Each row's record keeps the order: the request lists the
+levels, and the response's ``candidate_ids`` and ``candidate_option_keys`` map level i to
+``candidates[i]``.
 
 The instruction is passed verbatim. When every candidate description is a JSON object with the
 same keys, each description becomes the JSON array of its values in sorted-key order, and the
@@ -433,6 +440,10 @@ def _read_decision(
         raise RuntimeError("Arbit decide() returned a malformed answer")
     probabilities = {str(key): float(value) for key, value in distribution.items()}
     rounded = answer.get("probabilities") or {}
+    if not isinstance(rounded, dict) or not all(
+        isinstance(value, int | float) and math.isfinite(value) for value in rounded.values()
+    ):
+        raise RuntimeError("the answer's 4-decimal probabilities are not finite numbers")
     if set(map(str, rounded)) != set(probabilities) or any(
         abs(round(value, 4) - float(rounded[key])) > 1e-9 for key, value in probabilities.items()
     ):
