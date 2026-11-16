@@ -160,6 +160,9 @@ class NativeDecisionAPI(ModelAPI):
                 try:
                     await self.batch_tasks[index]
                     result = self.responses.pop(row_id)
+                    if isinstance(result, Exception):
+                        error, result = result, None
+                        raise error
                 finally:
                     self.batch_remaining[index] -= 1
                     if self.batch_remaining[index] == 0:
@@ -227,6 +230,7 @@ def error_record(example: DecisionExample, error: Exception) -> Record:
         "example": example.model_dump(mode="json"),
         "error_type": type(error).__name__,
         "error": str(error),
+        **{key: getattr(error, key) for key in ("request", "response") if hasattr(error, key)},
         "evaluation_framework": "inspect-ai",
     }
 

@@ -20,6 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+quyet = ["quyet[student]==1.2.0"]
 hf = [
   "peft>=0.17,<1",
   "safetensors>=0.6,<1",

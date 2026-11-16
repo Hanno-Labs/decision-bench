@@ -23,6 +23,7 @@ the reason to [add a model adapter](../contributing/adding_a_model.md).
 |---|---|---|
 | `run-hf` | [`Hanno-Labs/bosun-v3.1-0.6b`](https://huggingface.co/Hanno-Labs/bosun-v3.1-0.6b), [`Hanno-Labs/bosun-v3.1-1.7b`](https://huggingface.co/Hanno-Labs/bosun-v3.1-1.7b) | Masked softmax over valid decision tokens |
 | `run-nimble-hf` | [`bespokelabs/Bespoke-Nimble-9B`](https://huggingface.co/bespokelabs/Bespoke-Nimble-9B) | Published candidate-token logits; up to 26 choices |
+| `run-quyet` | [`chinhnc/Quyet-1.2-Large`](https://huggingface.co/chinhnc/Quyet-1.2-Large) | Public unrounded choice/score probabilities mapped to displayed candidate order; model-specific limits, no truncation |
 | `run-public-hf --model-type cua-s1` | [`cua-ai/cua-s1-4b-0.2`](https://huggingface.co/cua-ai/cua-s1-4b-0.2) text adapter | Published final-position option-letter logits; up to 26 candidates |
 | `run-public-hf --model-type gliner25` | [`fastino/GLiNER2.5-Decide`](https://huggingface.co/fastino/GLiNER2.5-Decide) | Exclusive classification logits over candidate labels, softmaxed as conditional option preference; rows over 512 encoded tokens or with `(` in a candidate label are unsupported |
 | `run-public-hf --model-type mojev` | [`MoLeMo-Lab/mojev`](https://huggingface.co/MoLeMo-Lab/mojev) | Published packed candidate logits; up to 255 candidates |
@@ -71,3 +72,24 @@ candidates remain explicit unsupported rows; at 65,536 input tokens every Decisi
 The run records `adapter=imajev-serving-systemone-v1` and
 `probability_source=trained_readout_4_rotation_mean_temperature_calibrated_v1` through the
 `--adapter-name` / `--probability-source` options.
+
+## Quyet 1.2
+
+Install `uv sync --extra quyet`. Run `decision-bench run-quyet
+ task_specs/decisionbench-dev.toml results/quyet --model-repo chinhnc/Quyet-1.2-Large
+ --model-revision <40-character-commit> --smoke` (then omit `--smoke` in a new output directory).
+
+Candidate selection and binary classification use `choice` with candidate IDs as keys in
+shown order. Candidate text is the label when its description is absent or identical; otherwise
+it is `label: description`, following the harness convention. Duplicate labels are supported.
+Binary rows use choice because Quyet's noul readout fixes true/false texts. Ordinal scoring uses
+`score` with levels stably sorted by ordinal value; its probabilities are mapped back to candidate
+IDs in displayed order. The instruction and standard state are unchanged. Score supports 2–10
+levels; choice uses the model's declared limit (up to 256).
+
+The adapter calls only `quyet.load` and `raw_probabilities(..., strict=True)`, with the model's
+default temperatures and prefix caching off. Context overflow and invalid public inputs are
+explicit `UnsupportedQuyetInput` rows and count against coverage and primary accuracy. The raw audit
+stores the ordered public request as JSON text, original candidate IDs/labels, and the unrounded
+response. Latency is amortized batch time per row. Model and tokenizer use the same pinned
+repository revision; the model's configured limits and temperatures are recorded in the manifest.
