@@ -19,6 +19,7 @@ from decision_bench.evaluate import (
     run_openrouter_evaluation,
     run_openrouter_top_logprobs_evaluation,
     run_public_hf_evaluation,
+    run_quyet_evaluation,
     run_system_one_http_evaluation,
     select_smoke_examples,
 )
@@ -285,6 +286,41 @@ def run_nimble_hf(
         batch_size=batch_size,
         max_prompt_characters_per_batch=max_prompt_characters_per_batch,
         attn_implementation=attn_implementation,
+        benchmark_metadata=_benchmark_metadata(benchmark),
+    )
+    typer.echo(json.dumps(summary, indent=2, sort_keys=True))
+
+
+@app.command("run-quyet")
+def run_quyet(
+    spec_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    output_dir: Annotated[Path, typer.Argument(file_okay=False)],
+    model_repo: Annotated[str, typer.Option()],
+    model_revision: Annotated[str, typer.Option()],
+    project_root: Annotated[Path | None, typer.Option()] = None,
+    device: Annotated[str, typer.Option()] = "cuda",
+    batch_size: Annotated[int, typer.Option(min=1)] = 8,
+    max_prompt_characters_per_batch: Annotated[int, typer.Option(min=1)] = 262_144,
+    checkpoint_dir: Annotated[Path | None, typer.Option()] = None,
+    checkpoint_interval_seconds: Annotated[int, typer.Option(min=1)] = 120,
+    smoke: Annotated[bool, typer.Option()] = False,
+) -> None:
+    """Run pinned Quyet 1.2 through its public API, with standard fields and no truncation."""
+    resolved_root = project_root if project_root is not None else Path.cwd()
+    benchmark = _load_run_benchmark(spec_path, resolved_root, False)
+    examples = list(benchmark.examples)
+    if smoke:
+        examples = select_smoke_examples(examples)
+    summary = run_quyet_evaluation(
+        examples,
+        output_dir,
+        model_repo=model_repo,
+        model_revision=model_revision,
+        device=device,
+        batch_size=batch_size,
+        max_prompt_characters_per_batch=max_prompt_characters_per_batch,
+        checkpoint_dir=checkpoint_dir,
+        checkpoint_interval_seconds=checkpoint_interval_seconds,
         benchmark_metadata=_benchmark_metadata(benchmark),
     )
     typer.echo(json.dumps(summary, indent=2, sort_keys=True))

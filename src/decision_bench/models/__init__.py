@@ -14,6 +14,7 @@ from decision_bench.models.public_hf import (
     SystemOneHFDecisionModel,
     Tev1HFDecisionModel,
 )
+from decision_bench.models.quyet import QuyetDecisionModel
 from decision_bench.models.system_one_http import SystemOneHTTPDecisionModel
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "OpenRouterDecisionModel",
     "OpenRouterResponse",
     "OpenRouterTopLogprobsDecisionModel",
+    "QuyetDecisionModel",
     "SystemOneHFDecisionModel",
     "SystemOneHTTPDecisionModel",
     "Tev1HFDecisionModel",

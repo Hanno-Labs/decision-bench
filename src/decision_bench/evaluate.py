@@ -23,6 +23,7 @@ from decision_bench.models import (
     OpenJevHFDecisionModel,
     OpenRouterDecisionModel,
     OpenRouterTopLogprobsDecisionModel,
+    QuyetDecisionModel,
     SystemOneHFDecisionModel,
     SystemOneHTTPDecisionModel,
     Tev1HFDecisionModel,
@@ -415,6 +416,48 @@ def run_public_hf_evaluation(
     return summary
 
 
+def run_quyet_evaluation(
+    examples: list[DecisionExample],
+    output_dir: Path,
+    *,
+    model_repo: str,
+    model_revision: str,
+    device: str = "cuda",
+    batch_size: int = 8,
+    max_prompt_characters_per_batch: int = 262_144,
+    checkpoint_dir: Path | None = None,
+    checkpoint_interval_seconds: int = 120,
+    benchmark_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Evaluate the public Quyet distribution, preserving all requested rows."""
+    decision_model = QuyetDecisionModel(
+        model_repo=model_repo, model_revision=model_revision, device=device
+    )
+    summary = _run_hf_batches(
+        examples,
+        output_dir,
+        decision_model=decision_model,
+        batch_size=batch_size,
+        max_prompt_characters_per_batch=max_prompt_characters_per_batch,
+        metadata={**decision_model.metadata, **(benchmark_metadata or {})},
+        checkpoint_dir=checkpoint_dir,
+        checkpoint_interval_seconds=checkpoint_interval_seconds,
+    )
+    latest = {
+        r["row_id"]: r
+        for r in (json.loads(line) for line in (output_dir / "raw.jsonl").read_text().splitlines())
+    }
+    unsupported = sum(r.get("error_type") == "UnsupportedQuyetInput" for r in latest.values())
+    summary.update(
+        unsupported_rows=unsupported,
+        ineligible_rows=unsupported,
+        eligible_rows=len(examples) - unsupported,
+        ineligible_definition="rows rejected by the unmodified public Quyet input contract",
+    )
+    _write_run_artifacts(output_dir, summary)
+    return summary
+
+
 def _run_hf_batches(
     examples: list[DecisionExample],
     output_dir: Path,
@@ -427,6 +470,7 @@ def _run_hf_batches(
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
+        | QuyetDecisionModel
         | SystemOneHFDecisionModel
         | Tev1HFDecisionModel
     ),
@@ -464,6 +508,7 @@ def _hf_batches(
         | MoJevHFDecisionModel
         | NanoJevHFDecisionModel
         | OpenJevHFDecisionModel
+        | QuyetDecisionModel
         | SystemOneHFDecisionModel
         | Tev1HFDecisionModel
     ),
